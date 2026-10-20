@@ -1,0 +1,4 @@
+<resources>
+    <string name="still_toolbar_help_title">Hold to act</string>
+    <string name="still_toolbar_help_summary">Hold buttons or suggested words to use them. Quick taps do nothing. Hold the left arrow to open this setup. Pin your favorite actions below.</string>
+</resources>

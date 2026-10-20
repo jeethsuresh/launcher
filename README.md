@@ -1,6 +1,6 @@
 # Still Launcher
 
-A native Kotlin Android home launcher inspired by the simplicity of Fossify. Android 8.0+; optimized for portrait phones. Original implementation, with no Fossify source or assets copied.
+A native Kotlin Android home launcher inspired by the simplicity of Fossify. Android 8.0+; optimized for portrait phones. The launcher is an original implementation, with no Fossify source or assets copied. Still Keyboard is based on HeliBoard 3.5; see `THIRD_PARTY.md` for source and licenses.
 
 ## Download
 
@@ -10,7 +10,7 @@ Get the installable APK from [GitHub Releases](https://github.com/jeethsuresh/la
 
 ## Build and run
 
-Open this directory in Android Studio, or use a JDK 17+ and Android SDK 35:
+Open this directory in Android Studio, or use a JDK 17+, Android SDK 35, and NDK 27.0.12077973:
 
 ```sh
 ./gradlew assembleDebug
@@ -42,14 +42,31 @@ Open **Still Launcher → settings → Set as default** to choose it as your Hom
 
 ## Controls
 
-- Swipe up, or tap **All apps**, to open the drawer.
+- Swipe up, or tap **All apps**, to open the drawer. At the top of the app list, pull down to bring the drawer down and return home. Scrolling a longer app list keeps the drawer open.
 - Hold a drawer app to add it to home, pin it to the dock, or open App info.
 - Hold a home icon to drag it. Drop onto **Remove** to remove its shortcut, or **App info** for Android's app settings.
 - Hold empty home space for widgets, wallpapers, page controls, and arrangement mode.
-- Hold a widget → **Resize** for width/height controls. Unavailable resize directions are omitted. Tap **Apply** to commit; occupied cells are rejected.
-- In **Arrange home screen** mode, hold a widget to drag it. Tap a home icon for cell/page movement and other options. TalkBack exposes **Item options** actions too.
+- Hold a home widget or clock to drag it directly. Drop onto **Options**, then choose **Resize** for width/height controls. Unavailable resize directions are omitted; occupied cells are rejected.
+- In **Arrange home screen** mode, tap a widget or home icon for its options. TalkBack exposes **Item options** actions too. Ordinary widget buttons and scrolling work outside arrangement mode.
 - An empty home page can be removed by holding its background. At least one page remains.
 - Back closes panels/edit mode; Home returns to the launcher and then the first page.
+
+## Still Keyboard
+
+Open **Launcher settings → Still Keyboard** to enable and select the included system keyboard.
+It works in other Android apps too.
+
+- Rounded light/dark keys and an apostrophe in Android's usual comma position.
+- Offline swipe typing, spelling correction, and word suggestions.
+- Emoji palette with local English keyword search, plus symbols and long-press alternates.
+- Hold toolbar actions or suggested words to use them; quick taps do nothing.
+- Hold the left arrow for toolbar setup. Hold emoji category/search controls too.
+- US/UK English dictionaries are bundled. No proprietary gesture library is required.
+
+See `docs/KEYBOARD.md` for controls, setup, and testing, and `THIRD_PARTY.md` for licensing.
+
+<img src="docs/images/keyboard.png" alt="Still Keyboard with apostrophe beside the space bar" width="280" /> <img src="docs/images/widgets-grouped.png" alt="Widget picker grouped alphabetically by app" width="280" />
+Widgets in the picker are grouped by app, with apps in alphabetical order.
 
 ## Structure and future additions
 
@@ -67,7 +84,7 @@ A future feed can be a separate panel alongside the drawer and settings, with it
 
 This is a functional first version, delivered as a debug-signed APK. It is not a Play Store release. Portrait phone layout and English copy are the initial focus. Folders, notification dots, icon packs, pinned app shortcuts, Android Private Space integration, backup/restore, a news feed, weather services, and device-wide search are not included. Standard accessible profiles use LauncherApps; enterprise and OEM-specific policies still need physical-device testing. Layout backup is disabled because widget IDs cannot safely be restored as ordinary preference values.
 
-See `docs/VALIDATION.md` for the checks run on this build.
+See `docs/VALIDATION.md` and `docs/KEYBOARD_VALIDATION.md` for build and emulator checks.
 
 ## Platform references
 

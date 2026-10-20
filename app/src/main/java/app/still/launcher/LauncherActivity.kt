@@ -63,6 +63,7 @@ class LauncherActivity : Activity() {
     private var drawerAdapter: AppsAdapter? = null
     private var editing = false
     private var dragging = false
+    private var draggedItem: HomeItem? = null
     private var lastEdge = 0
     private var activeDialog: AlertDialog? = null
     private var destroyed = false
@@ -225,7 +226,11 @@ class LauncherActivity : Activity() {
         top.removeAllViews()
         if (dragging) {
             top.addView(dropTarget("Remove", "trash") { payload -> removePayload(payload) }, LinearLayout.LayoutParams(0, -1, 1f))
-            top.addView(dropTarget("App info", "info") { payload -> appInfo(payload.appKey) }, LinearLayout.LayoutParams(0, -1, 1f))
+            if (draggedItem?.kind in listOf(ItemKind.WIDGET, ItemKind.CLOCK)) {
+                top.addView(dropTarget("Options", "settings") { payload ->
+                    store.items.find { it.id == payload.itemId }?.let { item -> main.post { itemMenu(item) } }
+                }, LinearLayout.LayoutParams(0, -1, 1f))
+            } else top.addView(dropTarget("App info", "info") { payload -> appInfo(payload.appKey) }, LinearLayout.LayoutParams(0, -1, 1f))
         } else if (editing) {
             top.addView(label("Arrange your home", 14f, Color.WHITE, true), LinearLayout.LayoutParams(0, -2, 1f))
             top.addView(pill("Done", 0xffd0e8d6.toInt(), 0xff1a392a.toInt()) { setEditing(false) }, LinearLayout.LayoutParams(dp(78), dp(40)))
@@ -301,11 +306,11 @@ class LauncherActivity : Activity() {
             typeface = Typeface.create("sans-serif-light", Typeface.NORMAL); letterSpacing = -.055f
             setTextColor(0xfff1f7ed.toInt()); includeFontPadding = false
         }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(5) })
-        contentDescription = "Clock and date. Touch and hold for options."
+        contentDescription = "Clock and date. Touch and hold to drag. Drop on Options to resize."
         setOnClickListener {
             if (editing) itemMenu(item) else safeStart(Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS), "No clock app is installed.")
         }
-        setOnLongClickListener { if (editing) beginDrag(this, DragPayload(item.id)) else itemMenu(item); true }
+        setOnLongClickListener { beginDrag(this, DragPayload(item.id)); true }
         addActions(this, item)
     }
 
@@ -341,8 +346,10 @@ class LauncherActivity : Activity() {
         val hostView = widgets.host.createView(this, item.widgetId, info) as TouchWidgetHost
         hostView.held = {
             if (store.settings.locked) message("Unlock the layout in settings to edit widgets.")
-            else if (editing) beginDrag(hostView, DragPayload(item.id)) else itemMenu(item)
+            else beginDrag(hostView, DragPayload(item.id))
         }
+        hostView.editMode = editing
+        hostView.tapped = { itemMenu(item) }
         addActions(hostView, item)
         hostView.addOnLayoutChangeListener { _, l, t, r, b, _, _, _, _ ->
             if (r > l && b > t) updateWidgetSize(hostView, r-l, b-t)
@@ -375,7 +382,8 @@ class LauncherActivity : Activity() {
     private fun beginDrag(view: View, payload: DragPayload) {
         if (store.settings.locked) { message("Layout is locked. Unlock it in settings."); return }
         view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-        dragging = true; lastEdge = 0; workspace.editing = true; renderTop()
+        dragging = true; draggedItem = store.items.find { it.id == payload.itemId }
+        lastEdge = 0; workspace.editing = true; renderTop()
         if (!view.startDragAndDrop(ClipData.newPlainText("Still item", payload.appKey), View.DragShadowBuilder(view), payload, 0)) endDrag()
     }
 
@@ -416,7 +424,7 @@ class LauncherActivity : Activity() {
     }
 
     private fun endDrag() {
-        dragging = false; workspace.dropPreview = null; workspace.editing = editing
+        dragging = false; draggedItem = null; workspace.dropPreview = null; workspace.editing = editing
         main.removeCallbacks(edgeTurn); renderTop(); dock.alpha = 1f
     }
 
@@ -576,6 +584,7 @@ class LauncherActivity : Activity() {
         val empty = label("No apps found\nTry another name.", 16f, muted).apply { gravity = Gravity.CENTER; setLineSpacing(dp(8).toFloat(), 1f) }
         gridFrame.addView(grid, FrameLayout.LayoutParams(-1, -1)); gridFrame.addView(empty, FrameLayout.LayoutParams(-1, -1)); grid.emptyView = empty
         val adapter = AppsAdapter(); drawerAdapter = adapter; grid.adapter = adapter
+        (body as PullDownDrawerLayout).canPull = { !grid.canScrollVertically(-1) }
         body.addView(gridFrame, LinearLayout.LayoutParams(-1, 0, 1f))
         search.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
@@ -616,7 +625,7 @@ class LauncherActivity : Activity() {
 
     private fun panelBase(title: String, subtitle: String, kind: String): LinearLayout {
         closePanel()
-        val body = LinearLayout(this).apply {
+        val body = (if (kind == "drawer") PullDownDrawerLayout(this) else LinearLayout(this)).apply {
             orientation = LinearLayout.VERTICAL; background = rounded(surface, dp(28).toFloat())
             setPadding(dp(24), dp(8), dp(24), dp(12)); isClickable = true
         }
@@ -628,6 +637,11 @@ class LauncherActivity : Activity() {
         body.addView(label(subtitle, 13f, muted).apply { setLineSpacing(dp(3).toFloat(), 1f) }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10); bottomMargin = dp(24) })
         home.visibility = View.INVISIBLE
         panel = body; panelKind = kind
+        if (body is PullDownDrawerLayout) {
+            body.pullStarted = { hideKeyboard(); home.visibility = View.VISIBLE }
+            body.settled = { if (panel === body) home.visibility = View.INVISIBLE }
+            body.dismissed = { if (panel === body) closePanel() }
+        }
         safe.addView(body, FrameLayout.LayoutParams(-1, -1).apply { topMargin = dp(8) })
         body.alpha = 0f; body.translationY = dp(24).toFloat(); body.animate().alpha(1f).translationY(0f).setDuration(180).start()
         updateSystemBars(); root.requestApplyInsets()
@@ -668,8 +682,12 @@ class LauncherActivity : Activity() {
         settingsRow(content, "Add a clock", "A simple clock and date", "plus") { if (!store.settings.locked) addClock() else message("Unlock the layout first.") }
         settingsRow(content, "Arrange home screen", "Drag icons. Tap items for more options.", "grid") { if (!store.settings.locked) { closePanel(); setEditing(true) } else message("Unlock the layout first.") }
         settingsRow(content, "Manage pages", "${store.pages} home ${if (store.pages == 1) "page" else "pages"}", "home") { pageManager() }
+        section(content, "KEYBOARD")
+        settingsRow(content, "Still Keyboard", "Swipe typing, emoji search, and held toolbar controls", "settings") {
+            startActivity(Intent(this, KeyboardSetupActivity::class.java))
+        }
         section(content, "STILL LAUNCHER")
-        content.addView(label("A quieter kind of home.\nVersion 0.1.0 · Works entirely on your device.\nNo ads. No account. No network permission.", 12f, muted).apply { setLineSpacing(dp(6).toFloat(), 1f); setPadding(dp(4), dp(8), 0, dp(24)) })
+        content.addView(label("A quieter kind of home.\nVersion 0.2.0 · Works entirely on your device.\nNo ads. No account. No network permission.", 12f, muted).apply { setLineSpacing(dp(6).toFloat(), 1f); setPadding(dp(4), dp(8), 0, dp(24)) })
     }
 
     private fun section(parent: LinearLayout, title: String) {
@@ -802,15 +820,34 @@ class LauncherActivity : Activity() {
 
     private fun showWidgets() {
         if (store.settings.locked) { message("Unlock the layout in settings to add widgets."); return }
-        val body = panelBase("Room for a little more.", "Widgets from your apps. Touch and hold one on your home screen to resize it.", "widgets")
+        val body = panelBase("Room for a little more.", "Grouped by app. Hold a home widget to drag it; drop on Options to resize.", "widgets")
         val providers = widgets.providers()
+        data class Entry(val app: String, val info: AppWidgetProviderInfo?)
+        val collator = java.text.Collator.getInstance().apply { strength = java.text.Collator.PRIMARY }
+        val groups = providers.groupBy { it.provider.packageName to it.profile }.values
+            .map { group -> widgets.appLabel(group.first()) to group }
+            .sortedWith { a, b -> collator.compare(a.first, b.first).takeIf { it != 0 }
+                ?: a.second.first().provider.packageName.compareTo(b.second.first().provider.packageName) }
+        val entries = groups.flatMap { (app, group) ->
+            listOf(Entry(app, null)) + group.sortedWith { a, b -> collator.compare(a.loadLabel(packageManager), b.loadLabel(packageManager)) }
+                .map { Entry(app, it) }
+        }
         val list = ListView(this).apply { divider = null; isVerticalScrollBarEnabled = false }
         list.adapter = object : BaseAdapter() {
-            override fun getCount() = providers.size
-            override fun getItem(position: Int) = providers[position]
+            override fun getCount() = entries.size
+            override fun getItem(position: Int) = entries[position]
             override fun getItemId(position: Int) = position.toLong()
+            override fun areAllItemsEnabled() = false
+            override fun isEnabled(position: Int) = entries[position].info != null
+            override fun getViewTypeCount() = 2
+            override fun getItemViewType(position: Int) = if (entries[position].info == null) 0 else 1
             override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
-                val info = providers[position]
+                val entry = entries[position]
+                val info = entry.info ?: return label(entry.app, 19f, ink, true).apply {
+                    setPadding(dp(4), dp(20), dp(4), dp(12))
+                    if (Build.VERSION.SDK_INT >= 28) isAccessibilityHeading = true
+                    contentDescription = "${entry.app} widgets"
+                }
                 val row = LinearLayout(this@LauncherActivity).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(12), dp(16), dp(12), dp(16)); background = rounded(card, dp(18).toFloat()) }
                 val icon = ImageView(this@LauncherActivity).apply { setImageDrawable(info.loadIcon(this@LauncherActivity, resources.displayMetrics.densityDpi)); scaleType = ImageView.ScaleType.FIT_CENTER }
                 row.addView(icon, LinearLayout.LayoutParams(dp(44), dp(44)).apply { marginEnd = dp(16) })
@@ -826,7 +863,8 @@ class LauncherActivity : Activity() {
         if (providers.isEmpty()) body.addView(label("No widgets are available yet. Install an app with widgets, then come back here.", 16f, muted))
         else body.addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
         list.setOnItemClickListener { _, _, i, _ ->
-            val info = providers[i]; val (w, h) = widgetSpan(info)
+            val info = entries[i].info ?: return@setOnItemClickListener
+            val (w, h) = widgetSpan(info)
             if (w > store.settings.columns || h > store.settings.rows) message("This widget is too large for your grid. Change the grid in settings.")
             else { closePanel(); widgets.add(info) }
         }

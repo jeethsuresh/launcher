@@ -28,6 +28,12 @@ class Widgets(
         .flatMap { runCatching { manager.getInstalledProvidersForProfile(it) }.getOrDefault(emptyList()) }
         .sortedBy { it.loadLabel(activity.packageManager).lowercase() }
 
+    fun appLabel(info: AppWidgetProviderInfo): String = runCatching {
+        val app = activity.getSystemService(android.content.pm.LauncherApps::class.java)
+            .getApplicationInfo(info.provider.packageName, 0, info.profile)
+        activity.packageManager.getApplicationLabel(app).toString()
+    }.getOrDefault(info.provider.packageName)
+
     fun add(info: AppWidgetProviderInfo) {
         cancelPending()
         val id = host.allocateAppWidgetId()
@@ -90,6 +96,8 @@ class Widgets(
 /** Detect a hold without swallowing a widget's ordinary buttons, lists or other touches. */
 class TouchWidgetHost(context: Context) : AppWidgetHostView(context) {
     var held: (() -> Unit)? = null
+    var editMode = false
+    var tapped: (() -> Unit)? = null
     private var downX = 0f
     private var downY = 0f
     private var active = false
@@ -109,9 +117,14 @@ class TouchWidgetHost(context: Context) : AppWidgetHostView(context) {
                 postDelayed(hold, ViewConfiguration.getLongPressTimeout().toLong())
             }
             MotionEvent.ACTION_MOVE -> if (kotlin.math.abs(event.x - downX) + kotlin.math.abs(event.y - downY) > ViewConfiguration.get(context).scaledTouchSlop) removeCallbacks(hold)
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> removeCallbacks(hold)
+            MotionEvent.ACTION_UP -> {
+                removeCallbacks(hold)
+                if (editMode && !active) { performClick(); tapped?.invoke(); return true }
+            }
+            MotionEvent.ACTION_CANCEL -> removeCallbacks(hold)
         }
-        return if (active) true else super.dispatchTouchEvent(event)
+        return if (active || editMode) true else super.dispatchTouchEvent(event)
     }
+    override fun performClick(): Boolean { super.performClick(); return true }
     override fun onDetachedFromWindow() { removeCallbacks(hold); super.onDetachedFromWindow() }
 }

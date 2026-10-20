@@ -7,13 +7,19 @@ android {
         applicationId = "app.still.launcher"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
-        testInstrumentationRunner = "android.test.InstrumentationTestRunner"
+        versionCode = 2
+        versionName = "0.2.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
-    compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
+    compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17; isCoreLibraryDesugaringEnabled = true }
     kotlinOptions { jvmTarget = "17" }
     buildTypes { release { isMinifyEnabled = false } }
     lint { abortOnError = true }
 }
-dependencies { testImplementation("junit:junit:4.12") }
+dependencies {
+    implementation(project(":keyboard"))
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    testImplementation("junit:junit:4.12")
+}
