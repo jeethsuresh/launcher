@@ -12,7 +12,7 @@ android {
         consumerProguardFiles("consumer-rules.pro")
         buildConfigField("String", "APPLICATION_ID", "\"app.still.launcher\"")
         buildConfigField("int", "VERSION_CODE", "3501")
-        buildConfigField("String", "VERSION_NAME", "\"0.2.2 (HeliBoard 3.5)\"")
+        buildConfigField("String", "VERSION_NAME", "\"0.3.0 (HeliBoard 3.5)\"")
         ndk { abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")) }
     }
     buildFeatures { viewBinding = true; buildConfig = true; compose = true }

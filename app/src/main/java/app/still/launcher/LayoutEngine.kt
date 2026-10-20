@@ -51,3 +51,11 @@ class LayoutEngine(val columns: Int, val rows: Int) {
         return packed
     }
 }
+
+/** Inserting a page shifts positions without changing item identities, spans, or cell coordinates. */
+object PageLayout {
+    fun insert(items: List<HomeItem>, at: Int): List<HomeItem> {
+        require(at >= 0)
+        return items.map { if (it.page >= at) it.copy(page = it.page + 1) else it }
+    }
+}

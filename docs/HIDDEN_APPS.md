@@ -4,7 +4,7 @@ October 20, 2026. Android API 36.1 phone emulator; compile/target SDK 35, min SD
 
 ## Behavior
 
-Hold an app in All apps and choose **Hide from All apps**. Hidden apps are excluded from both browsing and drawer search. Existing home and dock shortcuts remain available.
+In 0.3.0, hold an app in All apps and drag it onto **Options**, then choose **Hide from All apps**. TalkBack also exposes **App options**. Hidden apps are excluded from both browsing and drawer search. Existing home and dock shortcuts remain available.
 
 In **Launcher settings → Hidden apps**, select the apps to hide and tap **Save**. Uncheck an app to restore it, use **Show all** to clear the hidden list, or **Cancel** to discard checkbox changes. The list follows the catalog's alphabetical order. Choices use the existing activity/profile identities; temporarily unavailable apps retain their choices when saving changes to the available list.
 

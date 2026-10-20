@@ -41,12 +41,7 @@ class LauncherStore(context: Context) {
 
     fun save(items: List<HomeItem> = this.items, dock: List<String> = this.dock, settings: LauncherSettings = this.settings) {
         this.items = items.toList(); this.dock = dock.toList(); this.settings = settings
-        val array = JSONArray()
-        items.forEach { item -> array.put(JSONObject().apply {
-            put("id", item.id); put("kind", item.kind.name); put("app", item.appKey)
-            put("widget", item.widgetId); put("page", item.page); put("x", item.x); put("y", item.y)
-            put("w", item.spanX); put("h", item.spanY)
-        }) }
+        val array = JSONArray(items.map(::encodeItem))
         // Discrete layout edits are small transactions. Commit before returning so a process
         // stop immediately after a drop/resize cannot resurrect the previous layout.
         prefs.edit().putString("items", array.toString()).putString("dock", JSONArray(dock).toString())
@@ -59,14 +54,37 @@ class LauncherStore(context: Context) {
 
     var pendingWidget: Int
         get() = prefs.getInt("pendingWidget", -1)
-        set(value) { prefs.edit().putInt("pendingWidget", value).commit() }
+        set(value) { savePendingWidget(value, if (value < 0) null else pendingWidgetPlacement) }
+
+    val pendingWidgetPlacement: HomeItem?
+        get() = runCatching { prefs.getString("pending_widget_placement", null)?.let { decodeItem(JSONObject(it)) } }.getOrNull()
+
+    fun savePendingWidget(id: Int, placement: HomeItem?) {
+        prefs.edit().putInt("pendingWidget", id)
+            .putString("pending_widget_placement", placement?.let { encodeItem(it).toString() }).commit()
+    }
+
+    fun insertPage(at: Int) {
+        val count = pages
+        require(at in 0..count)
+        items = PageLayout.insert(items, at)
+        val pending = pendingWidgetPlacement?.let { PageLayout.insert(listOf(it), at).single() }
+        prefs.edit().putInt("pages", count + 1).putString("items", JSONArray(items.map(::encodeItem)).toString())
+            .putString("pending_widget_placement", pending?.let { encodeItem(it).toString() }).commit()
+    }
+
+    private fun encodeItem(item: HomeItem) = JSONObject().apply {
+        put("id", item.id); put("kind", item.kind.name); put("app", item.appKey)
+        put("widget", item.widgetId); put("page", item.page); put("x", item.x); put("y", item.y)
+        put("w", item.spanX); put("h", item.spanY)
+    }
+
+    private fun decodeItem(j: JSONObject) = HomeItem(j.getString("id"), ItemKind.valueOf(j.getString("kind")), j.optString("app"),
+        j.optInt("widget", -1), j.optInt("page"), j.optInt("x"), j.optInt("y"), j.optInt("w", 1), j.optInt("h", 1))
 
     private fun readItems(): List<HomeItem> = runCatching {
         val array = JSONArray(prefs.getString("items", "[]"))
-        (0 until array.length()).map { index -> array.getJSONObject(index).let {
-            HomeItem(it.getString("id"), ItemKind.valueOf(it.getString("kind")), it.optString("app"),
-                it.optInt("widget", -1), it.optInt("page"), it.optInt("x"), it.optInt("y"), it.optInt("w", 1), it.optInt("h", 1))
-        } }
+        (0 until array.length()).map { decodeItem(array.getJSONObject(it)) }
     }.getOrDefault(emptyList())
 
     private fun readStrings(key: String): List<String> = runCatching {

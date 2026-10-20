@@ -38,7 +38,7 @@ class WallpaperIntegrationTest {
     @Test fun testPresetsAndPhotosFollowLaterSystemChanges() = withLauncher("tide") { activity ->
         // A setting saved by an older version must not mask the active wallpaper.
         assertBackground(blue, "legacy-preset")
-        click(activity) { it.contentDescription == "Launcher settings" }
+        LauncherTestUi.settings(activity)
         click(activity) { it.contentDescription?.startsWith("Wallpapers,") == true }
         val previousId = manager.getWallpaperId(WallpaperManager.FLAG_SYSTEM)
         click(activity) { it.contentDescription == "Dune wallpaper. Tap to apply." }
@@ -96,18 +96,7 @@ class WallpaperIntegrationTest {
         finally { bitmap.recycle() }
     }
 
-    private fun click(activity: Activity, predicate: (View) -> Boolean) {
-        instrumentation.runOnMainSync {
-            fun find(view: View): View? {
-                if (predicate(view)) return view
-                if (view is ViewGroup) for (i in 0 until view.childCount) find(view.getChildAt(i))?.let { return it }
-                return null
-            }
-            val view = checkNotNull(find(activity.window.decorView)) { "Missing wallpaper control" }
-            assertTrue(view.performClick())
-        }
-        instrumentation.waitForIdleSync()
-    }
+    private fun click(activity: Activity, predicate: (View) -> Boolean) = LauncherTestUi.click(activity, predicate)
 
     private fun assertBackground(color: Int, name: String) {
         val deadline = SystemClock.uptimeMillis() + 6000

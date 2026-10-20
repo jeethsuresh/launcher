@@ -33,7 +33,7 @@ class HiddenAppsIntegrationTest {
         openDrawer()
         instrumentation.runOnMainSync {
             val grid = findView { it is GridView } as GridView
-            assertTrue(grid.onItemLongClickListener!!.onItemLongClick(grid, grid.getChildAt(0), 0, grid.adapter.getItemId(0)))
+            assertTrue(grid.getChildAt(0).performAccessibilityAction(10002, null))
         }
         clickDialog(target.label, "Hide from All apps")
         await { target.key in LauncherStore(context).hiddenApps }
@@ -110,7 +110,7 @@ class HiddenAppsIntegrationTest {
 
     private fun openManager() {
         clickView { it.contentDescription == "Back to home" }
-        clickView { it.contentDescription == "Launcher settings" }
+        LauncherTestUi.settings(activity)
         clickView { it.contentDescription?.startsWith("Hidden apps,") == true }
     }
 
@@ -132,10 +132,7 @@ class HiddenAppsIntegrationTest {
         return find(activity.window.decorView)
     }
 
-    private fun clickView(predicate: (View) -> Boolean) {
-        instrumentation.runOnMainSync { assertTrue(checkNotNull(findView(predicate)).performClick()) }
-        instrumentation.waitForIdleSync()
-    }
+    private fun clickView(predicate: (View) -> Boolean) = LauncherTestUi.click(activity, predicate)
 
     private fun clickDialog(title: String, text: String) {
         var node: AccessibilityNodeInfo? = null

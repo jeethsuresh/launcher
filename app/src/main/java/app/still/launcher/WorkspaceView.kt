@@ -59,13 +59,16 @@ class WorkspaceView(context: Context) : ViewGroup(context) {
             canvas.drawRoundRect(RectF(it.x * cellWidth + 4, it.y * cellHeight + 4, (it.x + it.spanX) * cellWidth - 4, (it.y + it.spanY) * cellHeight - 4), 22f, 22f, paint)
         }
     }
+    fun isWidgetAt(x: Float, y: Float): Boolean = placements.any { (view, item) ->
+        item.kind == ItemKind.WIDGET && x >= view.left && x < view.right && y >= view.top && y < view.bottom
+    }
     override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 downX = event.x; downY = event.y
-                onWidget = placements.any { (v, i) -> i.kind == ItemKind.WIDGET && event.x >= v.left && event.x < v.right && event.y >= v.top && event.y < v.bottom }
+                onWidget = isWidgetAt(event.x, event.y)
             }
-            MotionEvent.ACTION_MOVE -> if (!onWidget && maxOf(abs(event.x - downX), abs(event.y - downY)) > 32 * resources.displayMetrics.density) return true
+            MotionEvent.ACTION_MOVE -> if (!onWidget && abs(event.y - downY) > 32 * resources.displayMetrics.density && abs(event.y - downY) > abs(event.x - downX)) return true
         }
         return false
     }
@@ -74,9 +77,8 @@ class WorkspaceView(context: Context) : ViewGroup(context) {
         if (event.actionMasked == MotionEvent.ACTION_UP) {
             val dx = event.x - downX; val dy = event.y - downY
             val threshold = 48 * resources.displayMetrics.density
-            if (abs(dx) > threshold && abs(dx) > abs(dy)) swipe?.invoke(if (dx < 0) 1 else -1, 0)
-            else if (abs(dy) > threshold && abs(dy) > abs(dx)) swipe?.invoke(0, if (dy < 0) 1 else -1)
-            else performClick()
+            if (abs(dy) > threshold && abs(dy) > abs(dx)) swipe?.invoke(0, if (dy < 0) 1 else -1)
+            else if (abs(dx) < threshold && abs(dy) < threshold) performClick()
         }
         return true
     }

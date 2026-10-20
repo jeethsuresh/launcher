@@ -34,10 +34,10 @@ class Widgets(
         activity.packageManager.getApplicationLabel(app).toString()
     }.getOrDefault(info.provider.packageName)
 
-    fun add(info: AppWidgetProviderInfo) {
+    fun add(info: AppWidgetProviderInfo, placement: HomeItem? = null) {
         cancelPending()
         val id = host.allocateAppWidgetId()
-        store.pendingWidget = id
+        store.savePendingWidget(id, placement)
         val options = Bundle().apply { putInt(AppWidgetManager.OPTION_APPWIDGET_HOST_CATEGORY, AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN) }
         try {
             if (manager.bindAppWidgetIdIfAllowed(id, info.profile, info.provider, options)) configure(id)
@@ -47,7 +47,7 @@ class Widgets(
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER_PROFILE, info.profile)
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_OPTIONS, options)
             }, BIND)
-        } catch (_: Exception) { cancelPending(); message("This widget could not be added.") }
+        } catch (error: Exception) { android.util.Log.w("StillWidgets", "Unable to bind widget", error); cancelPending(); message("This widget could not be added.") }
     }
 
     private fun configure(id: Int) {
@@ -56,7 +56,7 @@ class Widgets(
             info.widgetFeatures and AppWidgetProviderInfo.WIDGET_FEATURE_RECONFIGURABLE != 0
         if (info.configure != null && !optional) {
             try { host.startAppWidgetConfigureActivityForResult(activity, id, 0, CONFIGURE, null) }
-            catch (_: Exception) { cancelPending(); message("The widget's setup screen is unavailable.") }
+            catch (error: Exception) { android.util.Log.w("StillWidgets", "Unable to configure widget", error); cancelPending(); message("The widget's setup screen is unavailable.") }
         } else finish(id, info)
     }
 

@@ -43,9 +43,13 @@ Open **Still Launcher → settings → Set as default** to choose it as your Hom
 ## Controls
 
 - Swipe up, or tap **All apps**, to open the drawer. At the top of the app list, pull down to bring the drawer down and return home. Scrolling a longer app list keeps the drawer open.
-- Hold a drawer app to add it to home, pin it to the dock, open App info, or **Hide from All apps**. Hidden apps also disappear from drawer search; home and dock shortcuts stay available.
-- Open **Launcher settings → Hidden apps** to hide several apps or restore individual ones. Checked apps are hidden; **Save** applies your choices, **Cancel** discards edits, and **Show all** restores everything.
-- Hold a home icon to drag it. Drop onto **Remove** to remove its shortcut, or **App info** for Android's app settings.
+- Hold a drawer app and drag it straight onto home. Drop it on **Options** for Add to home, Pin to dock, App info, or Hide from All apps. TalkBack also exposes **App options**.
+- Open **Widgets** from All apps, then hold a widget and drag it to a home cell. Android permission/configuration screens retain that location. Tapping a widget still adds it automatically.
+- Open **Launcher settings → Hidden apps** to hide or restore apps. Checked apps are hidden; **Save** applies changes, **Cancel** discards edits, and **Show all** restores everything. Home and dock shortcuts stay available.
+- Hold an app or widget at a screen edge to turn pages. At the outer edge, a new page is inserted there. Move away and back to turn another page.
+- Swipe horizontally between pages; the workspace follows your finger and settles with an animation. The date and dock stay fixed.
+- Hold the date at the top, or empty home space, to open customization and Launcher settings.
+- Hold a home icon to drag it. Drop onto **Remove** to remove its shortcut, or **Options** for its menu, including App info.
 - Hold empty home space for widgets, wallpapers, page controls, and arrangement mode.
 - Hold a home widget or clock to drag it directly. Drop onto **Options**, then choose **Resize** for width/height controls. Unavailable resize directions are omitted; occupied cells are rejected.
 - In **Arrange home screen** mode, tap a widget or home icon for its options. TalkBack exposes **Item options** actions too. Ordinary widget buttons and scrolling work outside arrangement mode.
@@ -76,6 +80,7 @@ Widgets in the picker are grouped by app, with apps in alphabetical order.
 - `AppCatalog.kt`: profile-aware app discovery, package callbacks, bounded icon cache, background loading.
 - `Widgets.kt`: stable AppWidgetHost identity, bind/configure result handling, and cancellation cleanup.
 - `WorkspaceView.kt`: cell geometry, placement rendering, and home gestures.
+- `WorkspacePager.kt`: finger tracking, animated page transitions, and adjacent live pages.
 - `Design.kt`: shared styling, original wallpaper drawing, and line icons.
 - `LauncherActivity.kt`: home/panel composition and user actions.
 
@@ -85,7 +90,7 @@ A future feed can be a separate panel alongside the drawer and settings, with it
 
 This is a functional first version, delivered as a debug-signed APK. It is not a Play Store release. Portrait phone layout and English copy are the initial focus. Folders, notification dots, icon packs, pinned app shortcuts, Android Private Space integration, backup/restore, a news feed, weather services, and device-wide search are not included. Standard accessible profiles use LauncherApps; enterprise and OEM-specific policies still need physical-device testing. Layout backup is disabled because widget IDs cannot safely be restored as ordinary preference values.
 
-See `docs/VALIDATION.md`, `docs/KEYBOARD_VALIDATION.md`, `docs/WALLPAPER_VALIDATION.md`, and `docs/HIDDEN_APPS.md` for build and emulator checks.
+See `docs/VALIDATION.md`, `docs/KEYBOARD_VALIDATION.md`, `docs/WALLPAPER_VALIDATION.md`, `docs/HIDDEN_APPS.md`, and `docs/HOME_DRAGGING.md` for build and emulator checks.
 
 ## Platform references
 

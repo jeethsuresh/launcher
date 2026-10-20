@@ -8,6 +8,7 @@ import android.appwidget.AppWidgetHostView
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
 import android.content.ClipData
+import android.content.ClipDescription
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Bitmap
@@ -50,7 +51,8 @@ class LauncherActivity : Activity() {
     private lateinit var root: FrameLayout
     private lateinit var safe: FrameLayout
     private lateinit var home: LinearLayout
-    private lateinit var workspace: WorkspaceView
+    private lateinit var pager: WorkspacePager
+    private val workspace get() = pager.currentWorkspace
     private lateinit var dock: LinearLayout
     private lateinit var dots: LinearLayout
     private lateinit var top: LinearLayout
@@ -66,6 +68,10 @@ class LauncherActivity : Activity() {
     private var dragging = false
     private var draggedItem: HomeItem? = null
     private var lastEdge = 0
+    private var activeDrag: DragPayload? = null
+    private var afterDrag: (() -> Unit)? = null
+    private var dragX = 0f
+    private var dragY = 0f
     private var activeDialog: AlertDialog? = null
     private var destroyed = false
     private val main = Handler(Looper.getMainLooper())
@@ -126,17 +132,17 @@ class LauncherActivity : Activity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         activeDialog?.dismiss()
-        if (panel != null || editing) { closePanel(); setEditing(false) } else { currentPage = 0; renderHome() }
+        if (panel != null || editing) { closePanel(); setEditing(false) } else navigatePage(0)
     }
     @Deprecated("Platform callback supports Android 8 and later")
     override fun onBackPressed() = handleBack()
 
     private fun handleBack() {
-        when { activeDialog?.isShowing == true -> activeDialog?.dismiss(); panel != null -> closePanel(); editing -> setEditing(false); currentPage != 0 -> { currentPage = 0; renderHome() }; else -> Unit }
+        when { activeDialog?.isShowing == true -> activeDialog?.dismiss(); panel != null -> closePanel(); editing -> setEditing(false); currentPage != 0 -> navigatePage(0); else -> Unit }
     }
 
     private fun createHome() {
-        root = FrameLayout(this)
+        root = FrameLayout(this).apply { setOnDragListener { _, event -> workspaceDrag(event) } }
         // Android owns the active image/live wallpaper. Draw only the readability shade here:
         // a cached preset or photo would hide changes made by another wallpaper picker.
         wallpaperDim = View(this)
@@ -159,15 +165,12 @@ class LauncherActivity : Activity() {
         safe.addView(home, FrameLayout.LayoutParams(-1, -1))
         top = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(10), 0, dp(2), 0) }
         home.addView(top, LinearLayout.LayoutParams(-1, dp(52)))
-        workspace = WorkspaceView(this).apply {
-            blankHold = { customize() }
-            swipe = { horizontal, vertical ->
-                if (vertical == 1) showDrawer()
-                else if (horizontal != 0) { currentPage = (currentPage + horizontal).coerceIn(0, store.pages - 1); renderHome() }
-            }
-            setOnDragListener { _, event -> workspaceDrag(event) }
+        top.setOnLongClickListener { if (!dragging) customize(); true }
+        pager = WorkspacePager(this).apply {
+            makePage = ::makeWorkspacePage
+            pageChanged = { page -> currentPage = page; renderDots() }
         }
-        home.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f))
+        home.addView(pager, LinearLayout.LayoutParams(-1, 0, 1f))
         dots = LinearLayout(this).apply { gravity = Gravity.CENTER; orientation = LinearLayout.HORIZONTAL }
         home.addView(dots, LinearLayout.LayoutParams(-1, dp(36)))
         dock = LinearLayout(this).apply { gravity = Gravity.CENTER; orientation = LinearLayout.HORIZONTAL; setPadding(dp(6), 0, dp(6), 0) }
@@ -201,43 +204,64 @@ class LauncherActivity : Activity() {
     }
 
     private fun renderHome() {
-        if (!::workspace.isInitialized) return
+        if (!::pager.isInitialized) return
         val settings = store.settings
         wallpaperDim.setBackgroundColor(Color.argb(settings.dim * 255 / 100, 0, 0, 0))
         currentPage = currentPage.coerceIn(0, store.pages - 1)
-        workspace.columns = settings.columns; workspace.rows = settings.rows; workspace.editing = editing
-        workspace.removeAllViews()
-        store.items.filter { it.page == currentPage }.forEach { item ->
-            val tile = when (item.kind) {
-                ItemKind.APP -> appTile(item.appKey, settings.labels, false).apply {
-                    setOnClickListener { if (editing) itemMenu(item) else launch(item.appKey) }
+        pager.bind(store.pages, currentPage)
+        if (!dragging) { renderTop(); renderDock() }
+        renderDots(); updateSystemBars()
+    }
+
+    private fun makeWorkspacePage(page: Int): WorkspaceView = WorkspaceView(this).apply {
+        columns = store.settings.columns; rows = store.settings.rows; editing = this@LauncherActivity.editing || dragging
+        contentDescription = "Home page ${page + 1}. Swipe up for apps. Touch and hold to customize."
+        blankHold = { customize() }
+        swipe = { _, vertical -> if (vertical == 1 && !dragging) showDrawer() }
+        store.items.filter { it.page == page }.forEach { item ->
+            val view = when (item.kind) {
+                ItemKind.APP -> appTile(item.appKey, store.settings.labels, false).apply {
+                    setOnClickListener { if (this@LauncherActivity.editing) itemMenu(item) else launch(item.appKey) }
                     setOnLongClickListener { beginDrag(this, DragPayload(item.id, item.appKey)); true }
                     addActions(this, item)
                 }
                 ItemKind.CLOCK -> clockTile(item)
                 ItemKind.WIDGET -> widgetTile(item)
             }
-            workspace.tile(tile, item)
+            tile(view, item)
         }
-        workspace.requestLayout()
-        renderTop(); renderDock(); renderDots(); updateSystemBars()
     }
+
+    private fun navigatePage(page: Int) { pager.goTo(page) }
 
     private fun renderTop() {
         top.removeAllViews()
         if (dragging) {
-            top.addView(dropTarget("Remove", "trash") { payload -> removePayload(payload) }, LinearLayout.LayoutParams(0, -1, 1f))
-            if (draggedItem?.kind in listOf(ItemKind.WIDGET, ItemKind.CLOCK)) {
+            val hasSource = activeDrag?.let { it.itemId != null || it.fromDock } == true
+            top.addView(dropTarget(if (hasSource) "Remove" else "Cancel", "trash") { payload ->
+                if (hasSource) removePayload(payload)
+            }, LinearLayout.LayoutParams(0, -1, 1f))
+            if (activeDrag?.widgetInfo == null) {
                 top.addView(dropTarget("Options", "settings") { payload ->
-                    store.items.find { it.id == payload.itemId }?.let { item -> main.post { itemMenu(item) } }
+                    afterDrag = {
+                        val item = store.items.find { it.id == payload.itemId }
+                        when {
+                            item != null -> itemMenu(item)
+                            payload.fromDock -> dockMenu(payload.appKey)
+                            else -> apps.find { it.key == payload.appKey }?.let(::appOptions)
+                        }
+                    }
                 }, LinearLayout.LayoutParams(0, -1, 1f))
-            } else top.addView(dropTarget("App info", "info") { payload -> appInfo(payload.appKey) }, LinearLayout.LayoutParams(0, -1, 1f))
+            } else top.addView(label("Drop on home to place", 13f, Color.WHITE).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(0, -1, 1f))
         } else if (editing) {
             top.addView(label("Arrange your home", 14f, Color.WHITE, true), LinearLayout.LayoutParams(0, -2, 1f))
             top.addView(pill("Done", 0xffd0e8d6.toInt(), 0xff1a392a.toInt()) { setEditing(false) }, LinearLayout.LayoutParams(dp(78), dp(40)))
         } else {
-            top.addView(label("STILL", 11f, 0xaaffffff.toInt(), true).apply { letterSpacing = .24f }, LinearLayout.LayoutParams(0, -2, 1f))
-            top.addView(iconButton("settings", "Launcher settings", Color.WHITE) { showSettings() }, LinearLayout.LayoutParams(dp(48), dp(48)))
+            top.addView(TextClock(this).apply {
+                format12Hour = "EEEE, MMMM d"; format24Hour = "EEEE, MMMM d"
+                textSize = 14f; setTextColor(0xffedf3ee.toInt()); includeFontPadding = false
+                maxLines = 1; ellipsize = TextUtils.TruncateAt.END
+            }, LinearLayout.LayoutParams(-1, -2))
         }
     }
 
@@ -266,7 +290,7 @@ class LauncherActivity : Activity() {
         }
         dock.setOnDragListener { _, event ->
             val payload = event.localState as? DragPayload
-            val isApp = payload != null && (payload.itemId == null || store.items.find { it.id == payload.itemId }?.kind == ItemKind.APP)
+            val isApp = payload != null && payload.widgetInfo == null && draggedItem?.kind == ItemKind.APP
             when (event.action) {
                 DragEvent.ACTION_DRAG_STARTED -> isApp
                 DragEvent.ACTION_DRAG_ENTERED -> { dock.alpha = .65f; true }
@@ -287,7 +311,7 @@ class LauncherActivity : Activity() {
                 contentDescription = "Home page ${page+1} of ${store.pages}"; isSelected = page == currentPage
                 addView(View(this@LauncherActivity).apply { background = rounded(if (page == currentPage) 0xffe1f0e4.toInt() else 0x55ffffff, dp(3).toFloat()) },
                     FrameLayout.LayoutParams(dp(if (page == currentPage) 18 else 5), dp(5), Gravity.CENTER))
-                setOnClickListener { currentPage = page; renderHome() }
+                setOnClickListener { navigatePage(page) }
             }
             dots.addView(dot, LinearLayout.LayoutParams(dp(32), dp(36)))
         }
@@ -378,44 +402,77 @@ class LauncherActivity : Activity() {
         })
     }
 
-    private data class DragPayload(val itemId: String? = null, val appKey: String = "", val fromDock: Boolean = false)
+    private data class DragPayload(val itemId: String? = null, val appKey: String = "", val fromDock: Boolean = false,
+        val widgetInfo: AppWidgetProviderInfo? = null)
 
-    private fun beginDrag(view: View, payload: DragPayload) {
+    private fun beginDrag(view: View, payload: DragPayload, fromPicker: Boolean = false) {
         if (store.settings.locked) { message("Layout is locked. Unlock it in settings."); return }
+        val size = payload.widgetInfo?.let(::widgetSpan) ?: (1 to 1)
+        if (size.first > store.settings.columns || size.second > store.settings.rows) {
+            message("This widget is too large for your grid. Change the grid in settings."); return
+        }
         view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-        dragging = true; draggedItem = store.items.find { it.id == payload.itemId }
-        lastEdge = 0; workspace.editing = true; renderTop()
-        if (!view.startDragAndDrop(ClipData.newPlainText("Still item", payload.appKey), View.DragShadowBuilder(view), payload, 0)) endDrag()
+        dragging = true; activeDrag = payload; afterDrag = null
+        draggedItem = store.items.find { it.id == payload.itemId } ?: HomeItem(
+            kind = if (payload.widgetInfo != null) ItemKind.WIDGET else ItemKind.APP,
+            appKey = payload.appKey, spanX = size.first, spanY = size.second)
+        lastEdge = 0; pager.pagingEnabled = false; pager.setEditing(true); renderTop()
+        val clip = ClipData(ClipDescription("Home item", arrayOf("application/vnd.app.still.launcher.item")), ClipData.Item(payload.appKey))
+        if (view.startDragAndDrop(clip, View.DragShadowBuilder(view), payload, 0)) {
+            if (fromPicker) closePanel()
+        } else endDrag()
     }
 
     private val edgeTurn = Runnable {
-        if (dragging && lastEdge != 0) {
-            val next = currentPage + lastEdge
-            if (next >= 0 && next < store.pages) { currentPage = next; renderHome() }
+        val direction = lastEdge
+        if (dragging && direction != 0) {
+            if (currentPage + direction !in 0 until store.pages) {
+                if (direction < 0) { store.insertPage(0); currentPage++ }
+                else store.insertPage(store.pages)
+                pager.bind(store.pages, currentPage)
+            }
+            navigatePage(currentPage + direction)
+            pager.setEditing(true)
+            updateDropPreview(dragX, dragY)
+            // One page per edge entry prevents creating endless empty pages while held still.
         }
+    }
+
+    private fun updateDropPreview(x: Float, y: Float): HomeItem? {
+        val item = draggedItem ?: return null
+        if (y !in 0f..pager.height.toFloat() || pager.width == 0 || pager.height == 0) { workspace.dropPreview = null; return null }
+        val col = (x / (pager.width.toFloat() / store.settings.columns) - item.spanX / 2f).roundToInt().coerceIn(0, store.settings.columns - item.spanX)
+        val row = (y / (pager.height.toFloat() / store.settings.rows) - item.spanY / 2f).roundToInt().coerceIn(0, store.settings.rows - item.spanY)
+        val candidate = item.copy(page = currentPage, x = col, y = row)
+        workspace.dropAllowed = engine.fits(candidate, store.items); workspace.dropPreview = candidate
+        return candidate
     }
 
     private fun workspaceDrag(event: DragEvent): Boolean {
         val payload = event.localState as? DragPayload ?: return false
-        val original = store.items.find { it.id == payload.itemId }
-        val item = original ?: HomeItem(kind = ItemKind.APP, appKey = payload.appKey)
+        val location = IntArray(2); pager.getLocationInWindow(location)
+        val rootLocation = IntArray(2); root.getLocationInWindow(rootLocation)
+        val x = event.x - location[0] + rootLocation[0]
+        val y = event.y - location[1] + rootLocation[1]
         when (event.action) {
-            DragEvent.ACTION_DRAG_STARTED -> return true
+            DragEvent.ACTION_DRAG_STARTED -> return dragging
             DragEvent.ACTION_DRAG_LOCATION -> {
-                val x = (event.x/workspace.cellWidth - item.spanX/2f).roundToInt().coerceIn(0, store.settings.columns-item.spanX)
-                val y = (event.y/workspace.cellHeight - item.spanY/2f).roundToInt().coerceIn(0, store.settings.rows-item.spanY)
-                val candidate = item.copy(page = currentPage, x = x, y = y)
-                workspace.dropAllowed = engine.fits(candidate, store.items); workspace.dropPreview = candidate
-                val edge = if (event.x < dp(22)) -1 else if (event.x > workspace.width-dp(22)) 1 else 0
+                dragX = x; dragY = y; updateDropPreview(x, y)
+                val edge = if (y !in 0f..pager.height.toFloat()) 0 else if (event.x < dp(32)) -1 else if (event.x > root.width - dp(32)) 1 else 0
                 if (edge != lastEdge) { main.removeCallbacks(edgeTurn); lastEdge = edge; if (edge != 0) main.postDelayed(edgeTurn, 650) }
             }
             DragEvent.ACTION_DROP -> {
-                val candidate = workspace.dropPreview
+                main.removeCallbacks(edgeTurn); lastEdge = 0
+                val candidate = updateDropPreview(x, y)
                 if (candidate != null && engine.fits(candidate, store.items)) {
-                    store.save(items = store.items.filterNot { it.id == candidate.id } + candidate,
-                        dock = if (payload.fromDock) store.dock.filterNot { it == payload.appKey } else store.dock)
-                    renderHome()
-                } else message("That space is occupied.")
+                    val provider = payload.widgetInfo
+                    if (provider != null) afterDrag = { widgets.add(provider, candidate) }
+                    else {
+                        store.save(items = store.items.filterNot { it.id == candidate.id } + candidate,
+                            dock = if (payload.fromDock) store.dock.filterNot { it == payload.appKey } else store.dock)
+                        renderHome()
+                    }
+                } else if (candidate != null) message("That space is occupied.")
                 workspace.dropPreview = null
             }
             DragEvent.ACTION_DRAG_EXITED -> { workspace.dropPreview = null; lastEdge = 0; main.removeCallbacks(edgeTurn) }
@@ -425,8 +482,12 @@ class LauncherActivity : Activity() {
     }
 
     private fun endDrag() {
-        dragging = false; draggedItem = null; workspace.dropPreview = null; workspace.editing = editing
-        main.removeCallbacks(edgeTurn); renderTop(); dock.alpha = 1f
+        if (!dragging) return
+        dragging = false; draggedItem = null; activeDrag = null; workspace.dropPreview = null
+        pager.pagingEnabled = true; pager.setEditing(editing)
+        main.removeCallbacks(edgeTurn); lastEdge = 0; renderTop(); renderDock(); dock.alpha = 1f
+        val action = afterDrag; afterDrag = null
+        if (action != null) main.post { if (!destroyed) action() }
     }
 
     private fun dropTarget(text: String, symbol: String, dropped: (DragPayload) -> Unit): View = LinearLayout(this).apply {
@@ -562,6 +623,8 @@ class LauncherActivity : Activity() {
     private fun showDrawer(initialQuery: String = "") {
         val body = panelBase("All apps", "", "drawer")
         drawerSummary = body.findViewWithTag("panelSubtitle")
+        val header = body.getChildAt(0) as LinearLayout
+        header.addView(pill("Widgets", card, ink) { showWidgets() }, header.childCount - 1, LinearLayout.LayoutParams(dp(88), dp(40)))
         val searchWrap = LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL; background = rounded(card, dp(22).toFloat()); setPadding(dp(8), 0, dp(8), 0)
         }
@@ -597,20 +660,24 @@ class LauncherActivity : Activity() {
         clear.visibility = View.INVISIBLE
         search.setOnEditorActionListener { _, _, _ -> adapter.filtered.firstOrNull()?.let { launch(it.key) }; true }
         grid.setOnItemClickListener { _, _, position, _ -> launch(adapter.filtered[position].key) }
-        grid.setOnItemLongClickListener { _, _, position, _ ->
-            val app = adapter.filtered[position]
-            dialog(app.label, listOf("Add to home", "Pin to dock", "App info", "Hide from All apps")) { choice -> when (choice) {
-                0 -> addApp(app.key); 1 -> pinDock(app.key, store.dock.size); 2 -> appInfo(app.key)
-                3 -> {
-                    store.saveHiddenApps(store.hiddenApps + app.key)
-                    adapter.filter(adapter.query)
-                    message("${app.label} hidden. Restore it in Settings → Hidden apps.")
-                }
-            } }; true
+        grid.setOnItemLongClickListener { _, view, position, _ ->
+            beginDrag(view, DragPayload(appKey = adapter.filtered[position].key), fromPicker = true)
+            true
         }
         search.setText(initialQuery)
         adapter.filter(initialQuery)
         search.clearFocus(); gridFrame.isFocusableInTouchMode = true; gridFrame.requestFocus()
+    }
+
+    private fun appOptions(app: LaunchableApp) {
+        dialog(app.label, listOf("Add to home", "Pin to dock", "App info", "Hide from All apps")) { choice -> when (choice) {
+            0 -> addApp(app.key); 1 -> pinDock(app.key, store.dock.size); 2 -> appInfo(app.key)
+            3 -> {
+                store.saveHiddenApps(store.hiddenApps + app.key)
+                drawerAdapter?.filter(drawerAdapter?.query ?: "")
+                message("${app.label} hidden. Restore it in Settings → Hidden apps.")
+            }
+        } }
     }
 
     private inner class AppsAdapter : BaseAdapter() {
@@ -620,7 +687,7 @@ class LauncherActivity : Activity() {
             query = value
             val visible = apps.filterNot { it.key in store.hiddenApps }
             filtered = visible.filter { it.label.contains(value.trim(), true) }
-            drawerSummary?.text = "${visible.size} apps · A little order, a little space."
+            drawerSummary?.text = "${visible.size} apps · Hold and drag to home."
             drawerEmpty?.text = if (visible.isEmpty() && store.hiddenApps.isNotEmpty())
                 "No apps to show\nRestore apps in Launcher settings → Hidden apps."
             else "No apps found\nTry another name."
@@ -631,6 +698,16 @@ class LauncherActivity : Activity() {
         override fun getItemId(position: Int) = filtered[position].key.hashCode().toLong()
         override fun getView(position: Int, convertView: View?, parent: ViewGroup): View = appTile(filtered[position].key, true, true).apply {
             layoutParams = AbsListView.LayoutParams(-1, dp(102)); isFocusable = false; isClickable = false; isLongClickable = false
+            setAccessibilityDelegate(object : View.AccessibilityDelegate() {
+                override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfo) {
+                    super.onInitializeAccessibilityNodeInfo(host, info)
+                    info.addAction(AccessibilityNodeInfo.AccessibilityAction(10002, "App options"))
+                }
+                override fun performAccessibilityAction(host: View, action: Int, args: Bundle?): Boolean {
+                    if (action == 10002) { appOptions(filtered[position]); return true }
+                    return super.performAccessibilityAction(host, action, args)
+                }
+            })
         }
     }
 
@@ -647,7 +724,7 @@ class LauncherActivity : Activity() {
             setPadding(dp(24), dp(8), dp(24), dp(12)); isClickable = true
         }
         val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        header.addView(label("STILL / ${kind.uppercase(Locale.ROOT)}", 10f, muted, true).apply { letterSpacing = .18f }, LinearLayout.LayoutParams(0, -2, 1f))
+        header.addView(label(kind.uppercase(Locale.ROOT), 10f, muted, true).apply { letterSpacing = .18f }, LinearLayout.LayoutParams(0, -2, 1f))
         header.addView(iconButton("close", "Back to home", ink) { closePanel() }, LinearLayout.LayoutParams(dp(48), dp(48)))
         body.addView(header, LinearLayout.LayoutParams(-1, dp(52)))
         body.addView(label(title, 34f, ink).apply { letterSpacing = -.04f }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
@@ -859,13 +936,13 @@ class LauncherActivity : Activity() {
         val options = (0 until store.pages).map { "Page ${it+1} · ${store.items.count { item -> item.page == it }} items" } + "Add a page"
         dialog("Home pages", options) { i ->
             if (i == store.pages) { if (!store.settings.locked) { closePanel(); addPage() } else message("Unlock the layout first.") }
-            else { currentPage = i; closePanel(); renderHome(); if (store.items.none { it.page == i }) message("Touch and hold the empty page to remove it.") }
+            else { closePanel(); navigatePage(i); if (store.items.none { it.page == i }) message("Touch and hold the empty page to remove it.") }
         }
     }
 
     private fun showWidgets() {
         if (store.settings.locked) { message("Unlock the layout in settings to add widgets."); return }
-        val body = panelBase("Room for a little more.", "Grouped by app. Hold a home widget to drag it; drop on Options to resize.", "widgets")
+        val body = panelBase("Room for a little more.", "Grouped by app. Hold and drag a widget onto home.", "widgets")
         val providers = widgets.providers()
         data class Entry(val app: String, val info: AppWidgetProviderInfo?)
         val collator = java.text.Collator.getInstance().apply { strength = java.text.Collator.PRIMARY }
@@ -902,7 +979,7 @@ class LauncherActivity : Activity() {
                 labels.addView(label("${size.first} × ${size.second} cells${if (info.resizeMode != AppWidgetProviderInfo.RESIZE_NONE) " · Resizable" else " · Fixed size"}", 12f, muted), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(7) })
                 row.addView(labels, LinearLayout.LayoutParams(0, -2, 1f))
                 row.addView(Glyph(this@LauncherActivity, "plus", accent), LinearLayout.LayoutParams(dp(36), dp(40)))
-                return FrameLayout(this@LauncherActivity).apply { addView(row, FrameLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) }) }
+                return FrameLayout(this@LauncherActivity).apply { tag = info; contentDescription = "${info.loadLabel(packageManager)} widget. Touch and hold to place."; addView(row, FrameLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) }) }
             }
         }
         if (providers.isEmpty()) body.addView(label("No widgets are available yet. Install an app with widgets, then come back here.", 16f, muted))
@@ -912,6 +989,10 @@ class LauncherActivity : Activity() {
             val (w, h) = widgetSpan(info)
             if (w > store.settings.columns || h > store.settings.rows) message("This widget is too large for your grid. Change the grid in settings.")
             else { closePanel(); widgets.add(info) }
+        }
+        list.setOnItemLongClickListener { _, view, position, _ ->
+            entries[position].info?.let { beginDrag(view, DragPayload(widgetInfo = it), fromPicker = true) }
+            true
         }
     }
 
@@ -924,8 +1005,13 @@ class LauncherActivity : Activity() {
     }
 
     private fun placeWidget(id: Int, info: AppWidgetProviderInfo): Boolean {
-        val (w, h) = widgetSpan(info)
-        val placed = engine.vacant(HomeItem(kind = ItemKind.WIDGET, widgetId = id, spanX = w, spanY = h), store.items, currentPage)
+        val requested = store.pendingWidgetPlacement
+        val placed = if (requested != null) requested.copy(widgetId = id)
+            .takeIf { it.page < store.pages && engine.fits(it, store.items) }
+        else {
+            val (w, h) = widgetSpan(info)
+            engine.vacant(HomeItem(kind = ItemKind.WIDGET, widgetId = id, spanX = w, spanY = h), store.items, currentPage)
+        }
         if (placed == null) { message("This widget does not fit the current grid."); return false }
         store.save(items = store.items + placed); currentPage = placed.page; renderHome(); return true
     }
