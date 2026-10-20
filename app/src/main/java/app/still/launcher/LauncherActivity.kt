@@ -35,7 +35,6 @@ import android.view.WindowManager
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.*
-import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -55,7 +54,7 @@ class LauncherActivity : Activity() {
     private lateinit var dock: LinearLayout
     private lateinit var dots: LinearLayout
     private lateinit var top: LinearLayout
-    private lateinit var wallpaper: StillWallpaper
+    private lateinit var wallpaperDim: View
     private var apps = emptyList<LaunchableApp>()
     private var currentPage = 0
     private var panel: View? = null
@@ -69,7 +68,6 @@ class LauncherActivity : Activity() {
     private var destroyed = false
     private val main = Handler(Looper.getMainLooper())
     private val io = Executors.newSingleThreadExecutor()
-    private var photoBitmap: Bitmap? = null
     private var previousNightMode = 0
     private val ink get() = if (light) 0xff202a25.toInt() else 0xffedf3ee.toInt()
     private val muted get() = if (light) 0xff65736b.toInt() else 0xff9eafa6.toInt()
@@ -95,7 +93,6 @@ class LauncherActivity : Activity() {
         createHome()
         if (Build.VERSION.SDK_INT >= 33) onBackInvokedDispatcher.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT) { handleBack() }
         catalog.refresh()
-        loadPhoto()
     }
 
     override fun onStart() { super.onStart(); runCatching { widgets.host.startListening() } }
@@ -138,8 +135,10 @@ class LauncherActivity : Activity() {
 
     private fun createHome() {
         root = FrameLayout(this)
-        wallpaper = StillWallpaper(this).apply { style = store.settings.wallpaper; dim = store.settings.dim }
-        root.addView(wallpaper, FrameLayout.LayoutParams(-1, -1))
+        // Android owns the active image/live wallpaper. Draw only the readability shade here:
+        // a cached preset or photo would hide changes made by another wallpaper picker.
+        wallpaperDim = View(this)
+        root.addView(wallpaperDim, FrameLayout.LayoutParams(-1, -1))
         safe = FrameLayout(this); root.addView(safe, FrameLayout.LayoutParams(-1, -1))
         root.setOnApplyWindowInsetsListener { _, insets ->
             if (Build.VERSION.SDK_INT >= 30) {
@@ -202,7 +201,7 @@ class LauncherActivity : Activity() {
     private fun renderHome() {
         if (!::workspace.isInitialized) return
         val settings = store.settings
-        wallpaper.style = settings.wallpaper; wallpaper.dim = settings.dim; wallpaper.photo = photoBitmap
+        wallpaperDim.setBackgroundColor(Color.argb(settings.dim * 255 / 100, 0, 0, 0))
         currentPage = currentPage.coerceIn(0, store.pages - 1)
         workspace.columns = settings.columns; workspace.rows = settings.rows; workspace.editing = editing
         workspace.removeAllViews()
@@ -672,7 +671,7 @@ class LauncherActivity : Activity() {
         switchRow(content, "App labels", "Show names on the home screen", store.settings.labels) { store.save(settings = store.settings.copy(labels = it)); renderHome() }
         switchRow(content, "Lock layout", "Keep icons and widgets in place", store.settings.locked) { store.save(settings = store.settings.copy(locked = it)); if (it) setEditing(false) }
         section(content, "LOOK & FEEL")
-        settingsRow(content, "Wallpapers", store.settings.wallpaper.replaceFirstChar { it.uppercase() }, "wallpaper") { showWallpapers() }
+        settingsRow(content, "Wallpapers", "Photos, landscapes, and device wallpapers", "wallpaper") { showWallpapers() }
         settingsRow(content, "Appearance", store.settings.theme.replaceFirstChar { it.uppercase() }, "settings") {
             val themes = listOf("system", "light", "dark")
             dialog("Appearance", themes.map { it.replaceFirstChar { c -> c.uppercase() } }) { i -> store.save(settings = store.settings.copy(theme = themes[i])); showSettings() }
@@ -687,7 +686,7 @@ class LauncherActivity : Activity() {
             startActivity(Intent(this, KeyboardSetupActivity::class.java))
         }
         section(content, "STILL LAUNCHER")
-        content.addView(label("A quieter kind of home.\nVersion 0.2.0 · Works entirely on your device.\nNo ads. No account. No network permission.", 12f, muted).apply { setLineSpacing(dp(6).toFloat(), 1f); setPadding(dp(4), dp(8), 0, dp(24)) })
+        content.addView(label("A quieter kind of home.\nVersion ${BuildConfig.VERSION_NAME} · Works entirely on your device.\nNo ads. No account. No network permission.", 12f, muted).apply { setLineSpacing(dp(6).toFloat(), 1f); setPadding(dp(4), dp(8), 0, dp(24)) })
     }
 
     private fun section(parent: LinearLayout, title: String) {
@@ -895,7 +894,7 @@ class LauncherActivity : Activity() {
             val column = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
             val image = StillWallpaper(this).apply { this.style = style; dim = 0; background = rounded(card, dp(18).toFloat()); clipToOutline = true }
             column.addView(image, LinearLayout.LayoutParams(-1, dp(190)))
-            column.addView(label(title + if (store.settings.wallpaper == style) " ✓" else "", 13f, ink, true), LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(14); bottomMargin = dp(16) })
+            column.addView(label(title, 13f, ink, true), LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(14); bottomMargin = dp(16) })
             column.setOnClickListener { applyWallpaper(style) }; column.contentDescription = "$title wallpaper. Tap to apply."; column.isFocusable = true
             cards.addView(column, LinearLayout.LayoutParams(0, -2, 1f).apply { setMargins(dp(4), 0, dp(4), 0) })
         }
@@ -905,8 +904,10 @@ class LauncherActivity : Activity() {
         }
         settingsRow(content, "Use device wallpaper", "Includes live wallpapers", "home") { store.save(settings = store.settings.copy(wallpaper = "device")); renderHome(); closePanel() }
         settingsRow(content, "System wallpaper picker", "Browse your phone's wallpaper collection", "wallpaper") {
-            store.save(settings = store.settings.copy(wallpaper = "device")); renderHome()
-            safeStart(Intent(Intent.ACTION_SET_WALLPAPER), "No wallpaper picker is installed.")
+            try {
+                startActivity(Intent(Intent.ACTION_SET_WALLPAPER))
+                store.save(settings = store.settings.copy(wallpaper = "device")); closePanel()
+            } catch (_: Exception) { message("No wallpaper picker is installed.") }
         }
         section(content, "READABILITY")
         content.addView(label("Darken wallpaper · ${store.settings.dim}%", 14f, ink).apply { tag = "dimLabel" })
@@ -925,7 +926,7 @@ class LauncherActivity : Activity() {
                 val bitmap = Bitmap.createBitmap(1080, 2400, Bitmap.Config.ARGB_8888)
                 try {
                     StillWallpaper.render(Canvas(bitmap), 1080f, 2400f, style)
-                    WallpaperManager.getInstance(this).setBitmap(bitmap, null, true, WallpaperManager.FLAG_SYSTEM)
+                    check(WallpaperManager.getInstance(this).setBitmap(bitmap, null, true, WallpaperManager.FLAG_SYSTEM) > 0)
                 } finally { bitmap.recycle() }
             }
             main.post { if (!destroyed) {
@@ -935,29 +936,16 @@ class LauncherActivity : Activity() {
         }
     }
 
-    private fun loadPhoto() {
-        val file = File(filesDir, "wallpaper.jpg")
-        if (!file.exists()) return
-        io.execute {
-            val bitmap = BitmapFactory.decodeFile(file.path)
-            main.post { if (!destroyed) { photoBitmap = bitmap; wallpaper.photo = bitmap } }
-        }
-    }
-
     private fun importPhoto(uri: Uri) {
         io.execute {
             val result = runCatching {
                 val image = decodePhoto(uri)
                 try {
-                    WallpaperManager.getInstance(this).setBitmap(image, null, true, WallpaperManager.FLAG_SYSTEM)
-                    val temporary = File(filesDir, "wallpaper.tmp")
-                    temporary.outputStream().use { if (!image.compress(Bitmap.CompressFormat.JPEG, 92, it)) error("Image could not be saved") }
-                    if (!temporary.renameTo(File(filesDir, "wallpaper.jpg"))) error("Image could not be saved")
-                    image
-                } catch (e: Exception) { image.recycle(); throw e }
+                    check(WallpaperManager.getInstance(this).setBitmap(image, null, true, WallpaperManager.FLAG_SYSTEM) > 0)
+                } finally { image.recycle() }
             }
-            main.post { if (!destroyed) result.onSuccess { bitmap ->
-                photoBitmap = bitmap; store.save(settings = store.settings.copy(wallpaper = "photo")); closePanel(); renderHome()
+            main.post { if (!destroyed) result.onSuccess {
+                store.save(settings = store.settings.copy(wallpaper = "photo")); closePanel(); renderHome()
             }.onFailure { message("That image could not be used as a wallpaper.") } }
         }
     }

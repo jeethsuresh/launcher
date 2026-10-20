@@ -13,7 +13,7 @@ data class LauncherSettings(
     val labels: Boolean = true,
     val locked: Boolean = false,
     val theme: String = "dark",
-    val wallpaper: String = "tide",
+    val wallpaper: String = "device",
     val dim: Int = 15,
 )
 
@@ -70,6 +70,6 @@ class LauncherStore(context: Context) {
         LauncherSettings(j.optInt("columns", 4).coerceIn(3, 7), j.optInt("rows", 6).coerceIn(4, 9),
             j.optInt("drawerColumns", 4).coerceIn(3, 6), j.optInt("dockSlots", 5).coerceIn(3, 7),
             j.optInt("iconSize", 52).coerceIn(36, 64), j.optBoolean("labels", true), j.optBoolean("locked"),
-            j.optString("theme", "dark"), j.optString("wallpaper", "tide"), j.optInt("dim", 15).coerceIn(0, 60))
+            j.optString("theme", "dark"), j.optString("wallpaper", "device"), j.optInt("dim", 15).coerceIn(0, 60))
     }.getOrDefault(LauncherSettings())
 }

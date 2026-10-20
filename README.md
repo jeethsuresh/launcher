@@ -4,7 +4,7 @@ A native Kotlin Android home launcher inspired by the simplicity of Fossify. And
 
 ## Download
 
-Get the installable APK from [GitHub Releases](https://github.com/jeethsuresh/launcher/releases). The first release is a debug-signed preview for testing on your phone.
+Get the installable APK from [GitHub Releases](https://github.com/jeethsuresh/launcher/releases). Releases are debug-signed previews for testing on your phone.
 
 <img src="docs/images/home.png" alt="Still Launcher home screen with a clock widget and app dock" width="320" />
 
@@ -37,7 +37,7 @@ Open **Still Launcher → settings → Set as default** to choose it as your Hom
 - Native third-party widgets, including Android's bind consent and provider configuration screens.
 - Widget size controls with a grid preview, collision checks, provider resize directions and minimum/maximum dimensions.
 - Home grid: 3–7 columns, 4–9 rows. Drawer: 3–6 columns. Icon size, home labels, layout lock, dark/light/system appearance.
-- Three original vector-drawn wallpapers, photo selection, device/live wallpaper support, and a darkness control.
+- Three original vector-drawn wallpapers, photo selection, device/live wallpaper support, and a darkness control. Home follows Android’s active wallpaper, including changes made outside Still.
 - Local layout/settings persistence. No ads, accounts, analytics, or network permission.
 
 ## Controls
@@ -84,7 +84,7 @@ A future feed can be a separate panel alongside the drawer and settings, with it
 
 This is a functional first version, delivered as a debug-signed APK. It is not a Play Store release. Portrait phone layout and English copy are the initial focus. Folders, notification dots, icon packs, pinned app shortcuts, Android Private Space integration, backup/restore, a news feed, weather services, and device-wide search are not included. Standard accessible profiles use LauncherApps; enterprise and OEM-specific policies still need physical-device testing. Layout backup is disabled because widget IDs cannot safely be restored as ordinary preference values.
 
-See `docs/VALIDATION.md` and `docs/KEYBOARD_VALIDATION.md` for build and emulator checks.
+See `docs/VALIDATION.md`, `docs/KEYBOARD_VALIDATION.md`, and `docs/WALLPAPER_VALIDATION.md` for build and emulator checks.
 
 ## Platform references
 

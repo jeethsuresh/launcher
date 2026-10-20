@@ -10,4 +10,9 @@
         <item name="android:windowShowWallpaper">true</item>
     </style>
     <style name="AppTheme" parent="BaseTheme" />
+    <!-- Only the home window reveals Android's wallpaper; keyboard setup keeps its solid theme. -->
+    <style name="LauncherTheme" parent="AppTheme">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:colorBackgroundCacheHint">@null</item>
+    </style>
 </resources>
