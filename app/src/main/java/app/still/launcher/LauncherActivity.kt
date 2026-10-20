@@ -60,6 +60,8 @@ class LauncherActivity : Activity() {
     private var panel: View? = null
     private var panelKind = ""
     private var drawerAdapter: AppsAdapter? = null
+    private var drawerSummary: TextView? = null
+    private var drawerEmpty: TextView? = null
     private var editing = false
     private var dragging = false
     private var draggedItem: HomeItem? = null
@@ -558,7 +560,8 @@ class LauncherActivity : Activity() {
     }
 
     private fun showDrawer(initialQuery: String = "") {
-        val body = panelBase("All apps", "${apps.size} apps · A little order, a little space.", "drawer")
+        val body = panelBase("All apps", "", "drawer")
+        drawerSummary = body.findViewWithTag("panelSubtitle")
         val searchWrap = LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL; background = rounded(card, dp(22).toFloat()); setPadding(dp(8), 0, dp(8), 0)
         }
@@ -581,6 +584,7 @@ class LauncherActivity : Activity() {
             isVerticalScrollBarEnabled = false
         }
         val empty = label("No apps found\nTry another name.", 16f, muted).apply { gravity = Gravity.CENTER; setLineSpacing(dp(8).toFloat(), 1f) }
+        drawerEmpty = empty
         gridFrame.addView(grid, FrameLayout.LayoutParams(-1, -1)); gridFrame.addView(empty, FrameLayout.LayoutParams(-1, -1)); grid.emptyView = empty
         val adapter = AppsAdapter(); drawerAdapter = adapter; grid.adapter = adapter
         (body as PullDownDrawerLayout).canPull = { !grid.canScrollVertically(-1) }
@@ -595,8 +599,13 @@ class LauncherActivity : Activity() {
         grid.setOnItemClickListener { _, _, position, _ -> launch(adapter.filtered[position].key) }
         grid.setOnItemLongClickListener { _, _, position, _ ->
             val app = adapter.filtered[position]
-            dialog(app.label, listOf("Add to home", "Pin to dock", "App info")) { choice -> when (choice) {
+            dialog(app.label, listOf("Add to home", "Pin to dock", "App info", "Hide from All apps")) { choice -> when (choice) {
                 0 -> addApp(app.key); 1 -> pinDock(app.key, store.dock.size); 2 -> appInfo(app.key)
+                3 -> {
+                    store.saveHiddenApps(store.hiddenApps + app.key)
+                    adapter.filter(adapter.query)
+                    message("${app.label} hidden. Restore it in Settings → Hidden apps.")
+                }
             } }; true
         }
         search.setText(initialQuery)
@@ -605,9 +614,18 @@ class LauncherActivity : Activity() {
     }
 
     private inner class AppsAdapter : BaseAdapter() {
-        var filtered = apps
+        var filtered = apps.filterNot { it.key in store.hiddenApps }
         var query = ""
-        fun filter(value: String) { query = value; val q = value.trim(); filtered = apps.filter { it.label.contains(q, true) }; notifyDataSetChanged() }
+        fun filter(value: String) {
+            query = value
+            val visible = apps.filterNot { it.key in store.hiddenApps }
+            filtered = visible.filter { it.label.contains(value.trim(), true) }
+            drawerSummary?.text = "${visible.size} apps · A little order, a little space."
+            drawerEmpty?.text = if (visible.isEmpty() && store.hiddenApps.isNotEmpty())
+                "No apps to show\nRestore apps in Launcher settings → Hidden apps."
+            else "No apps found\nTry another name."
+            notifyDataSetChanged()
+        }
         override fun getCount() = filtered.size
         override fun getItem(position: Int) = filtered[position]
         override fun getItemId(position: Int) = filtered[position].key.hashCode().toLong()
@@ -633,7 +651,7 @@ class LauncherActivity : Activity() {
         header.addView(iconButton("close", "Back to home", ink) { closePanel() }, LinearLayout.LayoutParams(dp(48), dp(48)))
         body.addView(header, LinearLayout.LayoutParams(-1, dp(52)))
         body.addView(label(title, 34f, ink).apply { letterSpacing = -.04f }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
-        body.addView(label(subtitle, 13f, muted).apply { setLineSpacing(dp(3).toFloat(), 1f) }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10); bottomMargin = dp(24) })
+        body.addView(label(subtitle, 13f, muted).apply { tag = "panelSubtitle"; setLineSpacing(dp(3).toFloat(), 1f) }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10); bottomMargin = dp(24) })
         home.visibility = View.INVISIBLE
         panel = body; panelKind = kind
         if (body is PullDownDrawerLayout) {
@@ -648,7 +666,7 @@ class LauncherActivity : Activity() {
     }
 
     private fun closePanel() {
-        hideKeyboard(); panel?.let { safe.removeView(it) }; if (::home.isInitialized) home.visibility = View.VISIBLE; panel = null; panelKind = ""; drawerAdapter = null
+        hideKeyboard(); panel?.let { safe.removeView(it) }; if (::home.isInitialized) home.visibility = View.VISIBLE; panel = null; panelKind = ""; drawerAdapter = null; drawerSummary = null; drawerEmpty = null
         if (::root.isInitialized) { updateSystemBars(); root.requestApplyInsets() }
     }
 
@@ -667,6 +685,7 @@ class LauncherActivity : Activity() {
         settingsRow(content, "Home screen grid", "${store.settings.columns} columns × ${store.settings.rows} rows", "grid") { gridSettings() }
         settingsRow(content, "Dock", "${store.settings.dockSlots} app slots", "home") { numberChoice("Dock slots", 3..7, store.settings.dockSlots) { changeDockSize(it) } }
         settingsRow(content, "App drawer grid", "${store.settings.drawerColumns} columns", "grid") { numberChoice("Drawer columns", 3..6, store.settings.drawerColumns) { store.save(settings = store.settings.copy(drawerColumns = it)); showSettings() } }
+        settingsRow(content, "Hidden apps", "${store.hiddenApps.size} hidden · Choose what appears in All apps", "grid") { manageHiddenApps() }
         settingsRow(content, "Icon size", "${store.settings.iconSize} dp", "widgets") { numberChoice("Icon size", listOf(36, 40, 44, 48, 52, 56, 60, 64), store.settings.iconSize) { store.save(settings = store.settings.copy(iconSize = it)); renderHome(); showSettings() } }
         switchRow(content, "App labels", "Show names on the home screen", store.settings.labels) { store.save(settings = store.settings.copy(labels = it)); renderHome() }
         switchRow(content, "Lock layout", "Keep icons and widgets in place", store.settings.locked) { store.save(settings = store.settings.copy(locked = it)); if (it) setEditing(false) }
@@ -687,6 +706,33 @@ class LauncherActivity : Activity() {
         }
         section(content, "STILL LAUNCHER")
         content.addView(label("A quieter kind of home.\nVersion ${BuildConfig.VERSION_NAME} · Works entirely on your device.\nNo ads. No account. No network permission.", 12f, muted).apply { setLineSpacing(dp(6).toFloat(), 1f); setPadding(dp(4), dp(8), 0, dp(24)) })
+    }
+
+    private fun manageHiddenApps() {
+        // Keep choices for temporarily unavailable profiles/apps when saving the visible list.
+        val choices = apps.toList()
+        val selected = store.hiddenApps.toMutableSet()
+        val labels = choices.map { app ->
+            val duplicate = choices.count { it.label == app.label && it.info.user == app.info.user } > 1
+            val profile = if (app.info.user == android.os.Process.myUserHandle()) "" else " (Other profile)"
+            if (duplicate) "${app.label}$profile · ${app.info.componentName.packageName}" else "${app.label}$profile"
+        }
+        showDialog(dialogBuilder().setTitle("Hidden apps")
+            .setMultiChoiceItems(labels.toTypedArray(), choices.map { it.key in selected }.toBooleanArray()) { _, index, checked ->
+                val key = choices[index].key
+                if (checked) selected.add(key) else selected.remove(key)
+            }
+            .setPositiveButton("Save") { _, _ -> store.saveHiddenApps(selected); showSettings() }
+            .setNegativeButton("Cancel", null)
+            .setNeutralButton("Show all") { _, _ -> store.saveHiddenApps(emptySet()); showSettings() }
+            .create().apply {
+                setCustomTitle(LinearLayout(this@LauncherActivity).apply {
+                    orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(20), dp(24), dp(12))
+                    addView(label("Hidden apps", 20f, ink, true))
+                    addView(label("Select apps to hide from All apps and search. Home and dock shortcuts stay visible.", 13f, muted)
+                        .apply { setPadding(0, dp(8), 0, 0) })
+                })
+            })
     }
 
     private fun section(parent: LinearLayout, title: String) {

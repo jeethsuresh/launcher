@@ -43,7 +43,8 @@ Open **Still Launcher → settings → Set as default** to choose it as your Hom
 ## Controls
 
 - Swipe up, or tap **All apps**, to open the drawer. At the top of the app list, pull down to bring the drawer down and return home. Scrolling a longer app list keeps the drawer open.
-- Hold a drawer app to add it to home, pin it to the dock, or open App info.
+- Hold a drawer app to add it to home, pin it to the dock, open App info, or **Hide from All apps**. Hidden apps also disappear from drawer search; home and dock shortcuts stay available.
+- Open **Launcher settings → Hidden apps** to hide several apps or restore individual ones. Checked apps are hidden; **Save** applies your choices, **Cancel** discards edits, and **Show all** restores everything.
 - Hold a home icon to drag it. Drop onto **Remove** to remove its shortcut, or **App info** for Android's app settings.
 - Hold empty home space for widgets, wallpapers, page controls, and arrangement mode.
 - Hold a home widget or clock to drag it directly. Drop onto **Options**, then choose **Resize** for width/height controls. Unavailable resize directions are omitted; occupied cells are rejected.
@@ -84,7 +85,7 @@ A future feed can be a separate panel alongside the drawer and settings, with it
 
 This is a functional first version, delivered as a debug-signed APK. It is not a Play Store release. Portrait phone layout and English copy are the initial focus. Folders, notification dots, icon packs, pinned app shortcuts, Android Private Space integration, backup/restore, a news feed, weather services, and device-wide search are not included. Standard accessible profiles use LauncherApps; enterprise and OEM-specific policies still need physical-device testing. Layout backup is disabled because widget IDs cannot safely be restored as ordinary preference values.
 
-See `docs/VALIDATION.md`, `docs/KEYBOARD_VALIDATION.md`, and `docs/WALLPAPER_VALIDATION.md` for build and emulator checks.
+See `docs/VALIDATION.md`, `docs/KEYBOARD_VALIDATION.md`, `docs/WALLPAPER_VALIDATION.md`, and `docs/HIDDEN_APPS.md` for build and emulator checks.
 
 ## Platform references
 

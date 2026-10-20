@@ -26,6 +26,14 @@ class LauncherStore(context: Context) {
         private set
     var dock: List<String> = readStrings("dock")
         private set
+    var hiddenApps: Set<String> = readStrings("hidden_apps").toSet()
+        private set
+
+    fun saveHiddenApps(keys: Set<String>) {
+        hiddenApps = keys.toSet()
+        prefs.edit().putString("hidden_apps", JSONArray(hiddenApps.sorted()).toString()).commit()
+    }
+
     var pages: Int
         get() = maxOf(prefs.getInt("pages", 1), (items.maxOfOrNull { it.page } ?: 0) + 1)
         set(value) { prefs.edit().putInt("pages", value.coerceAtLeast(1)).commit() }
