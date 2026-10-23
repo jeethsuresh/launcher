@@ -7,6 +7,9 @@ import android.app.role.RoleManager
 import android.appwidget.AppWidgetHostView
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.IntentFilter
 import android.content.ClipData
 import android.content.ClipDescription
 import android.content.Intent
@@ -75,6 +78,10 @@ class LauncherActivity : Activity() {
     private var dragX = 0f
     private var dragY = 0f
     private var activeDialog: AlertDialog? = null
+    private var wallpaperListener: Any? = null
+    private val wallpaperChanges = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) { if (!destroyed) renderHome() }
+    }
     private var destroyed = false
     private val main = Handler(Looper.getMainLooper())
     private val io = Executors.newSingleThreadExecutor()
@@ -107,6 +114,13 @@ class LauncherActivity : Activity() {
         widgets = Widgets(this, store, ::placeWidget, ::message)
         catalog = AppCatalog(this, ::catalogChanged)
         createHome()
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(wallpaperChanges, IntentFilter(Intent.ACTION_WALLPAPER_CHANGED), Context.RECEIVER_NOT_EXPORTED)
+        else registerReceiver(wallpaperChanges, IntentFilter(Intent.ACTION_WALLPAPER_CHANGED))
+        if (Build.VERSION.SDK_INT >= 27) {
+            val listener = WallpaperManager.OnColorsChangedListener { _, _ -> if (!destroyed) renderHome() }
+            wallpaperListener = listener
+            WallpaperManager.getInstance(this).addOnColorsChangedListener(listener, main)
+        }
         if (Build.VERSION.SDK_INT >= 33) onBackInvokedDispatcher.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT) { handleBack() }
         catalog.refresh()
     }
@@ -115,7 +129,9 @@ class LauncherActivity : Activity() {
     override fun onStop() { runCatching { widgets.host.stopListening() }; super.onStop() }
     override fun onResume() { super.onResume(); if (::catalog.isInitialized) catalog.refresh() }
     override fun onDestroy() {
-        destroyed = true; activeDialog?.dismiss(); catalog.close(); io.shutdownNow(); main.removeCallbacksAndMessages(null)
+        destroyed = true
+        if (Build.VERSION.SDK_INT >= 27) (wallpaperListener as? WallpaperManager.OnColorsChangedListener)?.let { WallpaperManager.getInstance(this).removeOnColorsChangedListener(it) }
+        runCatching { unregisterReceiver(wallpaperChanges) }; activeDialog?.dismiss(); catalog.close(); io.shutdownNow(); main.removeCallbacksAndMessages(null)
         super.onDestroy()
     }
     override fun onSaveInstanceState(outState: Bundle) { outState.putInt("page", currentPage); super.onSaveInstanceState(outState) }
@@ -1272,96 +1288,9 @@ class LauncherActivity : Activity() {
     }
 
     private fun importPhoto(uri: Uri) {
-        io.execute {
-            val result = runCatching { decodePhoto(uri) }
-            main.post {
-                if (destroyed) { result.getOrNull()?.recycle(); return@post }
-                result.onSuccess { image ->
-                    val preview = ImageView(this).apply {
-                        setImageBitmap(image); scaleType = ImageView.ScaleType.CENTER_CROP; contentDescription = "Wallpaper preview"
-                    }
-                    val frame = FrameLayout(this).apply {
-                        addView(preview, FrameLayout.LayoutParams(-1, -1))
-                        layoutParams = ViewGroup.LayoutParams(-1, dp(340))
-                        minimumHeight = dp(340)
-                    }
-                    val dialog = dialogBuilder().setTitle("Photo wallpaper").setView(frame)
-                        .setNegativeButton("Cancel", null).setPositiveButton("Apply", null).create()
-                    var applying = false
-                    dialog.setOnDismissListener { if (!applying) image.recycle() }
-                    dialog.setOnShowListener { dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                        if (!applying) {
-                            applying = true; dialog.dismiss(); applyPhoto(image)
-                        }
-                    } }
-                    showDialog(dialog)
-                }.onFailure { android.util.Log.w("StillWallpaper", "Unable to read selected image", it); message("Unable to read this image. Download it to your device and choose it from Files.") }
-            }
-        }
-    }
-
-    private fun applyPhoto(image: Bitmap) {
-        // Match the visible phone instead of handing an arbitrary photo aspect ratio to OEM croppers.
-        val display = resources.displayMetrics
-        val width = display.widthPixels.coerceAtMost(1440)
-        val height = (width * display.heightPixels.toFloat() / display.widthPixels).toInt()
-        io.execute {
-            val result = runCatching {
-                val cropped = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-                try {
-                    val scale = maxOf(width.toFloat() / image.width, height.toFloat() / image.height)
-                    val left = (width - image.width * scale) / 2f; val top = (height - image.height * scale) / 2f
-                    Canvas(cropped).drawBitmap(image, null, android.graphics.RectF(left, top, left + image.width * scale, top + image.height * scale), android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG))
-                    val pending = java.io.File(filesDir, "home-wallpaper.pending.jpg")
-                    pending.outputStream().use { check(cropped.compress(Bitmap.CompressFormat.JPEG, 95, it)) }
-                    val manager = WallpaperManager.getInstance(this)
-                    check(manager.isWallpaperSupported && manager.isSetWallpaperAllowed)
-                    val id = manager.setBitmap(cropped, null, true, WallpaperManager.FLAG_SYSTEM)
-                    check(id > 0)
-                    check(pending.renameTo(java.io.File(filesDir, "home-wallpaper.jpg")))
-                    id
-                } finally { cropped.recycle(); image.recycle() }
-            }
-            main.post { if (!destroyed) result.onSuccess { id ->
-                store.photoWallpaperId = id
-                store.save(settings = store.settings.copy(wallpaper = "photo")); closePanel(); renderHome(); message("Wallpaper applied")
-            }.onFailure { android.util.Log.w("StillWallpaper", "Unable to apply photo", it); message("Android could not set this wallpaper. Check your device's wallpaper restrictions.") } }
-        }
-    }
-
-    private fun decodePhoto(uri: Uri): Bitmap {
-        if (Build.VERSION.SDK_INT >= 28) {
-            return android.graphics.ImageDecoder.decodeBitmap(android.graphics.ImageDecoder.createSource(contentResolver, uri)) { decoder, info, _ ->
-                decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
-                val scale = minOf(1f, 2560f/maxOf(info.size.width, info.size.height))
-                decoder.setTargetSize((info.size.width*scale).toInt().coerceAtLeast(1), (info.size.height*scale).toInt().coerceAtLeast(1))
-            }
-        }
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
-        check(bounds.outWidth > 0 && bounds.outHeight > 0)
-        var sample = 1
-        while (maxOf(bounds.outWidth, bounds.outHeight)/sample > 2560) sample *= 2
-        val decoded = contentResolver.openInputStream(uri)?.use {
-            BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample })
-        } ?: error("Invalid image")
-        val orientation = runCatching { contentResolver.openInputStream(uri)?.use {
-            android.media.ExifInterface(it).getAttributeInt(android.media.ExifInterface.TAG_ORIENTATION, 1)
-        } }.getOrNull() ?: 1
-        val matrix = android.graphics.Matrix()
-        when (orientation) {
-            2 -> matrix.setScale(-1f, 1f)
-            3 -> matrix.setRotate(180f)
-            4 -> matrix.setScale(1f, -1f)
-            5 -> { matrix.setRotate(90f); matrix.postScale(-1f, 1f) }
-            6 -> matrix.setRotate(90f)
-            7 -> { matrix.setRotate(-90f); matrix.postScale(-1f, 1f) }
-            8 -> matrix.setRotate(-90f)
-        }
-        if (matrix.isIdentity) return decoded
-        val oriented = Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true)
-        if (oriented !== decoded) decoded.recycle()
-        return oriented
+        safeStartForResult(Intent(this, PhotoWallpaperActivity::class.java).apply {
+            data = uri; addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }, PHOTO_PREVIEW)
     }
 
     private fun requestHome() {
@@ -1384,6 +1313,9 @@ class LauncherActivity : Activity() {
                 runCatching { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
                 importPhoto(uri)
             } else message("No image was returned by the picker.")
+        }
+        if (requestCode == PHOTO_PREVIEW && resultCode == RESULT_OK) {
+            store = LauncherStore(this); closePanel(); renderHome(); message("Wallpaper applied")
         }
         if (requestCode == HOME_ROLE && panelKind == "settings") showSettings()
     }
@@ -1432,5 +1364,5 @@ class LauncherActivity : Activity() {
         }
     }
 
-    companion object { const val PHOTO = 51; const val HOME_ROLE = 52 }
+    companion object { const val PHOTO = 51; const val HOME_ROLE = 52; const val PHOTO_PREVIEW = 53 }
 }

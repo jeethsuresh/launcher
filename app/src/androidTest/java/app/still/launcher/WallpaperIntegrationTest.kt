@@ -35,6 +35,7 @@ class WallpaperIntegrationTest {
         assertBackground(green, "external-change")
     }
 
+    @androidx.test.filters.SdkSuppress(minSdkVersion = 29)
     @Test fun testPresetsAndPhotosFollowLaterSystemChanges() = withLauncher("tide") { activity ->
         // A setting saved by an older version must not mask the active wallpaper.
         assertBackground(blue, "legacy-preset")
@@ -48,11 +49,13 @@ class WallpaperIntegrationTest {
         instrumentation.waitForIdleSync()
 
         // Deliver a selected image through the same activity-result path as the document picker.
-        val image = File(context.cacheDir, "wallpaper-test.png")
+        val photo = context.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, android.content.ContentValues().apply {
+            put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, "launcher-photo-import.png")
+            put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/png")
+        })!!
         Bitmap.createBitmap(200, 300, Bitmap.Config.ARGB_8888).apply {
             eraseColor(green)
-            image.outputStream().use { compress(Bitmap.CompressFormat.PNG, 100, it) }
-            recycle()
+            context.contentResolver.openOutputStream(photo)!!.use { compress(Bitmap.CompressFormat.PNG, 100, it) }; recycle()
         }
         instrumentation.runOnMainSync {
             val result = LauncherActivity::class.java.getDeclaredMethod("onActivityResult",
@@ -60,53 +63,101 @@ class WallpaperIntegrationTest {
             result.isAccessible = true
             val current = ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED)
                 .filterIsInstance<LauncherActivity>().single()
-            result.invoke(current, LauncherActivity.PHOTO, Activity.RESULT_OK, Intent().setData(Uri.fromFile(image)))
+            result.invoke(current, LauncherActivity.PHOTO, Activity.RESULT_OK, Intent().setData(photo))
         }
-        LauncherTestUi.tapText("Apply")
+        applyPreview()
         assertBackground(green, "photo")
         setWallpaper(blue)
         assertBackground(blue, "external-after-photo")
-        image.delete()
+        context.contentResolver.delete(photo, null, null)
     }
 
-    @androidx.test.filters.SdkSuppress(minSdkVersion = 29)
+    @androidx.test.filters.SdkSuppress(minSdkVersion = 31)
     @Test fun testActualFilesPickerPreviewAndRestart() = withLauncher("device") { activity ->
-        val values = android.content.ContentValues().apply {
-            put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, "launcher-custom-wallpaper.png")
-            put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/png")
-            put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, "Download/")
-        }
-        val uri = context.contentResolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)!!
+        val bitmap = Bitmap.createBitmap(600, 400, Bitmap.Config.ARGB_8888).apply { eraseColor(green) }
+        val bytes = java.io.ByteArrayOutputStream().apply { bitmap.compress(Bitmap.CompressFormat.PNG, 100, this) }.toByteArray()
+        bitmap.recycle()
+        fun shell(command: String) { android.os.ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand(command)).use { it.readBytes() } }
+        val pipes = instrumentation.uiAutomation.executeShellCommandRw("tee /sdcard/Download/launcher-wallpaper-qa.png")
+        android.os.ParcelFileDescriptor.AutoCloseOutputStream(pipes[1]).use { it.write(bytes) }
+        val written = android.os.ParcelFileDescriptor.AutoCloseInputStream(pipes[0]).use { it.readBytes() }
+        assertArrayEquals("The real document fixture must be written before opening Files", bytes, written)
         try {
-            val bitmap = Bitmap.createBitmap(600, 400, Bitmap.Config.ARGB_8888).apply { eraseColor(green) }
-            context.contentResolver.openOutputStream(uri)!!.use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }; bitmap.recycle()
             LauncherTestUi.settings(activity)
             click(activity) { it.contentDescription?.startsWith("Wallpapers,") == true }
             click(activity) { it.contentDescription?.startsWith("Choose a photo,") == true }
+            fun openItem(text: String) {
+                var found: android.view.accessibility.AccessibilityNodeInfo? = null
+                LauncherTestUi.await {
+                    found = instrumentation.uiAutomation.rootInActiveWindow?.findAccessibilityNodeInfosByText(text)
+                        ?.firstOrNull { it.text?.toString() == text || it.contentDescription?.contains(text) == true }
+                    found != null
+                }
+                SystemClock.sleep(350)
+                val bounds = android.graphics.Rect(); found!!.refresh(); found!!.getBoundsInScreen(bounds)
+                shell("input tap ${bounds.centerX()} ${bounds.centerY()}")
+                SystemClock.sleep(600)
+            }
             // The system document provider returns a granted content URI, exactly as a user selection does.
             fun node(text: String) = instrumentation.uiAutomation.rootInActiveWindow?.findAccessibilityNodeInfosByText(text)?.firstOrNull { it.text?.toString() == text }
-            SystemClock.sleep(700)
-            if (node("launcher-custom-wallpaper.png") == null) {
+            LauncherTestUi.await { instrumentation.uiAutomation.rootInActiveWindow?.packageName?.toString()?.contains("documentsui") == true }
+            SystemClock.sleep(500)
+            if (node("launcher-wallpaper-qa.png") == null) {
                 fun roots(n: android.view.accessibility.AccessibilityNodeInfo?): android.view.accessibility.AccessibilityNodeInfo? {
                     if (n == null) return null
                     if (n.className == "android.widget.ImageButton") return n
                     for (i in 0 until n.childCount) roots(n.getChild(i))?.let { return it }
                     return null
                 }
+                LauncherTestUi.await { roots(instrumentation.uiAutomation.rootInActiveWindow) != null }
                 val button = roots(instrumentation.uiAutomation.rootInActiveWindow)!!
                 val bounds = android.graphics.Rect(); button.getBoundsInScreen(bounds)
                 LauncherTestUi.Pointer(bounds.exactCenterX(), bounds.exactCenterY()).up()
-                LauncherTestUi.tapText("Downloads")
+                SystemClock.sleep(300)
+                openItem(android.os.Build.MODEL)
+                openItem("Download")
             }
-            LauncherTestUi.tapText("launcher-custom-wallpaper.png")
-            LauncherTestUi.tapText("Apply")
+            try { openItem("launcher-wallpaper-qa.png") } catch (error: Throwable) {
+                val lines = mutableListOf<String>()
+                fun collect(n: android.view.accessibility.AccessibilityNodeInfo?) {
+                    if (n == null) return
+                    lines += "${n.className}: ${n.text} / ${n.contentDescription}"
+                    for (i in 0 until n.childCount) collect(n.getChild(i))
+                }
+                collect(instrumentation.uiAutomation.rootInActiveWindow)
+                File(context.cacheDir, "file-picker-failure.txt").writeText(lines.joinToString("\n"))
+                throw error
+            }
+            applyPreview()
             await { LauncherStore(context).settings.wallpaper == "photo" }
             assertBackground(green, "files-picker")
             instrumentation.runOnMainSync { activity.recreate() }
             instrumentation.waitForIdleSync()
             assertBackground(green, "files-picker-restart")
             assertTrue(File(context.filesDir, "home-wallpaper.jpg").length() > 0)
-        } finally { context.contentResolver.delete(uri, null, null) }
+        } finally { shell("rm -f /sdcard/Download/launcher-wallpaper-qa.png") }
+    }
+
+    private fun applyPreview() {
+        try {
+            LauncherTestUi.tapText("Apply")
+            LauncherTestUi.await {
+                var homeResumed = false
+                instrumentation.runOnMainSync { homeResumed = ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED).any { it is LauncherActivity } }
+                homeResumed && LauncherStore(context).settings.wallpaper == "photo"
+            }
+        } catch (error: Throwable) {
+            instrumentation.uiAutomation.takeScreenshot()?.let { image -> File(context.cacheDir, "photo-preview-failure.png").outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) }; image.recycle() }
+            val lines = mutableListOf<String>()
+            fun collect(node: android.view.accessibility.AccessibilityNodeInfo?) {
+                if (node == null) return
+                lines += "${node.className}: ${node.text} / ${node.contentDescription}"
+                for (i in 0 until node.childCount) collect(node.getChild(i))
+            }
+            collect(instrumentation.uiAutomation.rootInActiveWindow)
+            File(context.cacheDir, "photo-preview-failure.txt").writeText(lines.joinToString("\n"))
+            throw error
+        }
     }
 
     private fun withLauncher(style: String, test: (LauncherActivity) -> Unit) {

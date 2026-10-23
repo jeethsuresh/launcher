@@ -47,10 +47,14 @@ object LauncherTestUi {
         var bounds = Rect()
         await {
             val node = instrumentation.uiAutomation.rootInActiveWindow?.findAccessibilityNodeInfosByText(text)
-                ?.firstOrNull { it.text?.toString()?.equals(text, true) == true }
+                ?.firstOrNull { it.text?.toString()?.equals(text, true) == true || it.contentDescription?.toString()?.contains(text, true) == true }
             node?.getBoundsInScreen(bounds)
             node != null && !bounds.isEmpty
         }
+        // Dialogs and system navigation drawers expose nodes before their entrance animation ends.
+        SystemClock.sleep(250)
+        instrumentation.uiAutomation.rootInActiveWindow?.findAccessibilityNodeInfosByText(text)
+            ?.firstOrNull { it.text?.toString()?.equals(text, true) == true || it.contentDescription?.toString()?.contains(text, true) == true }?.getBoundsInScreen(bounds)
         Pointer(bounds.exactCenterX(), bounds.exactCenterY()).up()
         instrumentation.waitForIdleSync()
     }
@@ -81,11 +85,13 @@ object LauncherTestUi {
             }
             return this
         }
-        fun up() { send(MotionEvent.ACTION_UP) }
+        fun up() { SystemClock.sleep(60); send(MotionEvent.ACTION_UP) }
         fun cancel() { send(MotionEvent.ACTION_CANCEL) }
         private fun send(action: Int) {
-            val event = MotionEvent.obtain(down, SystemClock.uptimeMillis(), action, x, y, 0)
-            event.source = InputDevice.SOURCE_TOUCHSCREEN
+            val properties = MotionEvent.PointerProperties().apply { id = 0; toolType = MotionEvent.TOOL_TYPE_FINGER }
+            val coordinates = MotionEvent.PointerCoords().apply { x = this@Pointer.x; y = this@Pointer.y; pressure = 1f; size = 1f }
+            val event = MotionEvent.obtain(down, SystemClock.uptimeMillis(), action, 1, arrayOf(properties), arrayOf(coordinates),
+                0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_TOUCHSCREEN, 0)
             assertTrue(instrumentation.uiAutomation.injectInputEvent(event, true))
             event.recycle()
         }
