@@ -89,11 +89,13 @@ class WallpaperIntegrationTest {
             if (node("launcher-custom-wallpaper.png") == null) {
                 fun roots(n: android.view.accessibility.AccessibilityNodeInfo?): android.view.accessibility.AccessibilityNodeInfo? {
                     if (n == null) return null
-                    if (n.contentDescription == "Show roots") return n
+                    if (n.className == "android.widget.ImageButton") return n
                     for (i in 0 until n.childCount) roots(n.getChild(i))?.let { return it }
                     return null
                 }
-                roots(instrumentation.uiAutomation.rootInActiveWindow)?.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
+                val button = roots(instrumentation.uiAutomation.rootInActiveWindow)!!
+                val bounds = android.graphics.Rect(); button.getBoundsInScreen(bounds)
+                LauncherTestUi.Pointer(bounds.exactCenterX(), bounds.exactCenterY()).up()
                 LauncherTestUi.tapText("Downloads")
             }
             LauncherTestUi.tapText("launcher-custom-wallpaper.png")

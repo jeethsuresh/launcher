@@ -72,10 +72,34 @@ class LauncherUpdatesTest {
         restart()
         assertEquals("Daily", LauncherStore(context).folders.single().title)
         assertEquals(folderKey, LauncherStore(context).dock.last())
-        // Two dock apps combine at the target slot, and retain the existing folder.
-        drag(viewPoint { it.contentDescription == apps[3].label }, viewPoint { it.contentDescription == apps[4].label })
-        LauncherTestUi.await { LauncherStore(context).folders.size == 2 }
-        assertEquals(2, LauncherStore(context).dock.size)
+    }
+
+    @Test fun dockAppsCreateFolder() = isolated {
+        val apps = apps(); click { it.contentDescription == "Back to home" }
+        LauncherStore(context).save(items = emptyList(), dock = listOf(apps[0].key, apps[1].key))
+        restart(); instrumentation.waitForIdleSync(); SystemClock.sleep(400)
+        drag(viewPoint { it.contentDescription == apps[0].label }, viewPoint { it.contentDescription == apps[1].label })
+        try { LauncherTestUi.await { LauncherStore(context).folders.size == 1 } }
+        catch (error: Throwable) { throw AssertionError("Dock grouping state: ${LauncherStore(context).state}", error) }
+        assertEquals(listOf(apps[1].key, apps[0].key), LauncherStore(context).folders.single().apps)
+        assertEquals(1, LauncherStore(context).dock.size)
+    }
+
+    @Test fun uninstallDropUsesAndroidConfirmation() = isolated {
+        val fixture = apps().single { it.info.componentName.packageName == "app.still.removalfixture" }
+        val from = viewPoint { it.contentDescription == fixture.label }
+        val pointer = LauncherTestUi.Pointer(from.first, from.second).hold(850)
+        val target = viewPoint { it.contentDescription == "Uninstall" }
+        pointer.move(target.first, target.second).up()
+        LauncherTestUi.await {
+            val root = instrumentation.uiAutomation.rootInActiveWindow
+            root?.findAccessibilityNodeInfosByText("Do you want to uninstall this app?")?.isNotEmpty() == true
+        }
+        val root = instrumentation.uiAutomation.rootInActiveWindow
+        val positive = root.findAccessibilityNodeInfosByText("OK").firstOrNull { it.className == "android.widget.Button" }
+            ?: root.findAccessibilityNodeInfosByText("Uninstall").first { it.className == "android.widget.Button" }
+        LauncherTestUi.tapText(positive.text.toString())
+        LauncherTestUi.await { runCatching { context.packageManager.getApplicationInfo("app.still.removalfixture", 0) }.isFailure }
     }
 
     @Test fun drawerBottomSearchAndHideDrop() = isolated {
