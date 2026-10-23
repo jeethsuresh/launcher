@@ -2,7 +2,7 @@ package app.still.launcher
 
 import java.util.UUID
 
-enum class ItemKind { APP, WIDGET, CLOCK }
+enum class ItemKind { APP, WIDGET, CLOCK, FOLDER }
 
 data class HomeItem(
     val id: String = UUID.randomUUID().toString(),

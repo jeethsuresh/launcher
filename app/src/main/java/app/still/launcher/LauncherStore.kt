@@ -15,6 +15,10 @@ data class LauncherSettings(
     val theme: String = "dark",
     val wallpaper: String = "device",
     val dim: Int = 15,
+    val drawerColor: String = "",
+    val drawerOpacity: Int = 100,
+    val dockColor: String = "#effff0",
+    val dockOpacity: Int = 19,
 )
 
 @android.annotation.SuppressLint("ApplySharedPref")
@@ -26,6 +30,12 @@ class LauncherStore(context: Context) {
         private set
     var dock: List<String> = readStrings("dock")
         private set
+    var folders: List<LauncherFolder> = readFolders()
+        private set
+    val state get() = LauncherState(items, dock, folders)
+    var photoWallpaperId: Int
+        get() = prefs.getInt("photo_wallpaper_id", -1)
+        set(value) { prefs.edit().putInt("photo_wallpaper_id", value).commit() }
     var hiddenApps: Set<String> = readStrings("hidden_apps").toSet()
         private set
 
@@ -39,15 +49,22 @@ class LauncherStore(context: Context) {
         set(value) { prefs.edit().putInt("pages", value.coerceAtLeast(1)).commit() }
     val initialized: Boolean get() = prefs.getBoolean("initialized", false)
 
-    fun save(items: List<HomeItem> = this.items, dock: List<String> = this.dock, settings: LauncherSettings = this.settings) {
+    fun save(items: List<HomeItem> = this.items, dock: List<String> = this.dock, settings: LauncherSettings = this.settings, folders: List<LauncherFolder> = this.folders) {
         this.items = items.toList(); this.dock = dock.toList(); this.settings = settings
+        val references = items.filter { it.kind == ItemKind.FOLDER }.map { it.appKey } + dock
+        this.folders = folders.filter { it.key in references }.map { it.copy(apps = it.apps.distinct()) }
         val array = JSONArray(items.map(::encodeItem))
         // Discrete layout edits are small transactions. Commit before returning so a process
         // stop immediately after a drop/resize cannot resurrect the previous layout.
         prefs.edit().putString("items", array.toString()).putString("dock", JSONArray(dock).toString())
+            .putString("folders", JSONArray(this.folders.map { folder -> JSONObject().apply {
+                put("key", folder.key); put("title", folder.title); put("apps", JSONArray(folder.apps))
+            } }).toString())
             .putString("settings", JSONObject().apply {
                 put("columns", settings.columns); put("rows", settings.rows); put("drawerColumns", settings.drawerColumns)
                 put("dockSlots", settings.dockSlots); put("iconSize", settings.iconSize); put("labels", settings.labels)
+                put("drawerColor", settings.drawerColor); put("drawerOpacity", settings.drawerOpacity)
+                put("dockColor", settings.dockColor); put("dockOpacity", settings.dockOpacity)
                 put("locked", settings.locked); put("theme", settings.theme); put("wallpaper", settings.wallpaper); put("dim", settings.dim)
             }.toString()).putBoolean("initialized", true).commit()
     }
@@ -87,6 +104,16 @@ class LauncherStore(context: Context) {
         (0 until array.length()).map { decodeItem(array.getJSONObject(it)) }
     }.getOrDefault(emptyList())
 
+    fun save(state: LauncherState) = save(state.items, state.dock, folders = state.folders)
+
+    private fun readFolders(): List<LauncherFolder> = runCatching {
+        val array = JSONArray(prefs.getString("folders", "[]"))
+        (0 until array.length()).map { index ->
+            val j = array.getJSONObject(index); val apps = j.getJSONArray("apps")
+            LauncherFolder(j.getString("key"), j.optString("title", "Folder"), (0 until apps.length()).map { apps.getString(it) })
+        }
+    }.getOrDefault(emptyList())
+
     private fun readStrings(key: String): List<String> = runCatching {
         val a = JSONArray(prefs.getString(key, "[]")); (0 until a.length()).map { a.getString(it) }
     }.getOrDefault(emptyList())
@@ -96,6 +123,10 @@ class LauncherStore(context: Context) {
         LauncherSettings(j.optInt("columns", 4).coerceIn(3, 7), j.optInt("rows", 6).coerceIn(4, 9),
             j.optInt("drawerColumns", 4).coerceIn(3, 6), j.optInt("dockSlots", 5).coerceIn(3, 7),
             j.optInt("iconSize", 52).coerceIn(36, 64), j.optBoolean("labels", true), j.optBoolean("locked"),
-            j.optString("theme", "dark"), j.optString("wallpaper", "device"), j.optInt("dim", 15).coerceIn(0, 60))
+            j.optString("theme", "dark"), j.optString("wallpaper", "device"), j.optInt("dim", 15).coerceIn(0, 60),
+            j.optString("drawerColor", "").takeIf { it.matches(Regex("#[a-fA-F0-9]{6}")) } ?: "",
+            j.optInt("drawerOpacity", 100).coerceIn(0, 100),
+            j.optString("dockColor", "#effff0").takeIf { it.matches(Regex("#[a-fA-F0-9]{6}")) } ?: "#effff0",
+            j.optInt("dockOpacity", 19).coerceIn(0, 100))
     }.getOrDefault(LauncherSettings())
 }

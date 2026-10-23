@@ -56,6 +56,8 @@ class LauncherActivity : Activity() {
     private lateinit var dock: LinearLayout
     private lateinit var dots: LinearLayout
     private lateinit var top: LinearLayout
+    private lateinit var photoWallpaper: ImageView
+    private lateinit var drawerButton: LinearLayout
     private lateinit var wallpaperDim: View
     private var apps = emptyList<LaunchableApp>()
     private var currentPage = 0
@@ -82,7 +84,13 @@ class LauncherActivity : Activity() {
     private val surface get() = if (light) 0xfff3f5f0.toInt() else 0xff101b18.toInt()
     private val card get() = if (light) 0xffe7ece4.toInt() else 0xff1c2a24.toInt()
     private val accent get() = if (light) 0xff315f47.toInt() else 0xffc0dfc9.toInt()
-    private val light get() = store.settings.theme == "light" || (store.settings.theme == "system" && resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_NO)
+    private val light: Boolean get() {
+        if (panelKind == "drawer" && store.settings.drawerColor.isNotEmpty()) {
+            val color = Color.parseColor(store.settings.drawerColor)
+            return Color.red(color) * .299 + Color.green(color) * .587 + Color.blue(color) * .114 > 150
+        }
+        return store.settings.theme == "light" || (store.settings.theme == "system" && resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_NO)
+    }
     private val engine get() = LayoutEngine(store.settings.columns, store.settings.rows)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -145,6 +153,8 @@ class LauncherActivity : Activity() {
         root = FrameLayout(this).apply { setOnDragListener { _, event -> workspaceDrag(event) } }
         // Android owns the active image/live wallpaper. Draw only the readability shade here:
         // a cached preset or photo would hide changes made by another wallpaper picker.
+        photoWallpaper = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO }
+        root.addView(photoWallpaper, FrameLayout.LayoutParams(-1, -1))
         wallpaperDim = View(this)
         root.addView(wallpaperDim, FrameLayout.LayoutParams(-1, -1))
         safe = FrameLayout(this); root.addView(safe, FrameLayout.LayoutParams(-1, -1))
@@ -175,11 +185,9 @@ class LauncherActivity : Activity() {
         home.addView(dots, LinearLayout.LayoutParams(-1, dp(36)))
         dock = LinearLayout(this).apply { gravity = Gravity.CENTER; orientation = LinearLayout.HORIZONTAL; setPadding(dp(6), 0, dp(6), 0) }
         home.addView(dock, LinearLayout.LayoutParams(-1, dp(84)).apply { setMargins(dp(6), 0, dp(6), 0) })
-        val drawerButton = LinearLayout(this).apply { gravity = Gravity.CENTER; orientation = LinearLayout.HORIZONTAL; contentDescription = "Open app drawer"; isFocusable = true }
-        drawerButton.addView(Glyph(this, "up", 0xffdfebe1.toInt()), LinearLayout.LayoutParams(dp(24), dp(32)))
-        drawerButton.addView(label("All apps", 12f, 0xffdfebe1.toInt()), LinearLayout.LayoutParams(-2, -2))
-        drawerButton.setOnClickListener { showDrawer() }
-        home.addView(drawerButton, LinearLayout.LayoutParams(-1, dp(40)))
+        drawerButton = LinearLayout(this).apply { gravity = Gravity.CENTER; orientation = LinearLayout.HORIZONTAL; contentDescription = "Open app drawer"; isFocusable = true }
+        renderDrawerHandle()
+        home.addView(drawerButton, LinearLayout.LayoutParams(-1, dp(48)))
         setContentView(root)
         renderHome()
     }
@@ -206,6 +214,13 @@ class LauncherActivity : Activity() {
     private fun renderHome() {
         if (!::pager.isInitialized) return
         val settings = store.settings
+        val photo = java.io.File(filesDir, "home-wallpaper.jpg")
+        val wallpaperId = runCatching { WallpaperManager.getInstance(this).getWallpaperId(WallpaperManager.FLAG_SYSTEM) }.getOrDefault(-1)
+        val showPhoto = settings.wallpaper == "photo" && photo.exists() && wallpaperId == store.photoWallpaperId
+        if (showPhoto && photoWallpaper.tag != photo.lastModified()) {
+            photoWallpaper.setImageBitmap(BitmapFactory.decodeFile(photo.path)); photoWallpaper.tag = photo.lastModified()
+        }
+        photoWallpaper.visibility = if (showPhoto) View.VISIBLE else View.GONE
         wallpaperDim.setBackgroundColor(Color.argb(settings.dim * 255 / 100, 0, 0, 0))
         currentPage = currentPage.coerceIn(0, store.pages - 1)
         pager.bind(store.pages, currentPage)
@@ -224,6 +239,10 @@ class LauncherActivity : Activity() {
                     setOnClickListener { if (this@LauncherActivity.editing) itemMenu(item) else launch(item.appKey) }
                     setOnLongClickListener { beginDrag(this, DragPayload(item.id, item.appKey)); true }
                     addActions(this, item)
+                }
+                ItemKind.FOLDER -> folderTile(item.appKey, store.settings.labels).apply {
+                    setOnClickListener { if (this@LauncherActivity.editing) itemMenu(item) else openFolder(item.appKey) }
+                    setOnLongClickListener { beginDrag(this, DragPayload(item.id, item.appKey)); true }; addActions(this, item)
                 }
                 ItemKind.CLOCK -> clockTile(item)
                 ItemKind.WIDGET -> widgetTile(item)
@@ -266,15 +285,15 @@ class LauncherActivity : Activity() {
     }
 
     private fun renderDock() {
-        dock.removeAllViews(); dock.background = rounded(0x30effff0, dp(30).toFloat(), 0x22ffffff)
+        dock.removeAllViews(); dock.background = rounded(tinted(store.settings.dockColor, store.settings.dockOpacity), dp(30).toFloat())
         for (slot in 0 until store.settings.dockSlots) {
             val key = store.dock.getOrNull(slot)
             val tile = if (key == null) FrameLayout(this).apply {
                 contentDescription = "Empty dock slot ${slot+1}. Tap to choose an app."
                 addView(Glyph(this@LauncherActivity, "plus", 0x80ffffff.toInt()), FrameLayout.LayoutParams(dp(40), dp(40), Gravity.CENTER))
                 setOnClickListener { if (store.settings.locked) message("Unlock the layout in settings to edit the dock.") else chooseDockApp(slot) }
-            } else appTile(key, false, false).apply {
-                setOnClickListener { if (editing) dockMenu(key) else launch(key) }
+            } else entryTile(key, false).apply {
+                setOnClickListener { if (editing) dockMenu(key) else openEntry(key) }
                 setOnLongClickListener { beginDrag(this, DragPayload(appKey = key, fromDock = true)); true }
                 setAccessibilityDelegate(object : View.AccessibilityDelegate() {
                     override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfo) {
@@ -290,13 +309,20 @@ class LauncherActivity : Activity() {
         }
         dock.setOnDragListener { _, event ->
             val payload = event.localState as? DragPayload
-            val isApp = payload != null && payload.widgetInfo == null && draggedItem?.kind == ItemKind.APP
+            val isApp = payload != null && payload.widgetInfo == null && draggedItem?.kind in listOf(ItemKind.APP, ItemKind.FOLDER)
             when (event.action) {
                 DragEvent.ACTION_DRAG_STARTED -> isApp
                 DragEvent.ACTION_DRAG_ENTERED -> { dock.alpha = .65f; true }
                 DragEvent.ACTION_DRAG_EXITED, DragEvent.ACTION_DRAG_ENDED -> { dock.alpha = 1f; true }
                 DragEvent.ACTION_DROP -> {
-                    if (isApp) pinDock(payload!!.appKey, (event.x / (dock.width.toFloat()/store.settings.dockSlots)).toInt().coerceIn(0, store.settings.dockSlots-1), payload.itemId)
+                    if (isApp) {
+                        val source = payload!!
+                        val slot = (event.x / (dock.width.toFloat()/store.settings.dockSlots)).toInt().coerceIn(0, store.settings.dockSlots-1)
+                        val target = store.dock.getOrNull(slot)
+                        val grouped = target?.let { store.state.group(source.source(), it) }
+                        if (grouped != null) { store.save(grouped); renderHome() }
+                        else if (target != source.appKey) pinDock(source.appKey, slot, source.itemId, fromFolder = source.folderKey)
+                    }
                     true
                 }
                 else -> true
@@ -363,6 +389,97 @@ class LauncherActivity : Activity() {
         }
     }
 
+    private fun entryTile(key: String, labels: Boolean) = if (key.startsWith("folder:")) folderTile(key, labels) else appTile(key, labels, false)
+    private fun openEntry(key: String) { if (key.startsWith("folder:")) openFolder(key) else launch(key) }
+
+    private fun folderTile(key: String, showLabel: Boolean): View {
+        val folder = store.folders.find { it.key == key }
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; isFocusable = true
+            contentDescription = "${folder?.title ?: "Folder"}, folder, ${folder?.apps?.size ?: 0} apps"
+            val preview = GridLayout(this@LauncherActivity).apply {
+                columnCount = 2; rowCount = 2; setPadding(dp(5), dp(5), dp(5), dp(5))
+                background = rounded(0x66d0e8d6, dp(16).toFloat()); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+            }
+            val side = minOf(dp(store.settings.iconSize), resources.displayMetrics.widthPixels / maxOf(store.settings.columns, store.settings.dockSlots) - dp(10)).coerceAtLeast(dp(28))
+            folder?.apps?.take(4)?.forEach { appKey ->
+                val icon = ImageView(this@LauncherActivity).apply { scaleType = ImageView.ScaleType.FIT_CENTER; setImageDrawable(packageManager.defaultActivityIcon) }
+                apps.find { it.key == appKey }?.let { app -> catalog.icon(app) { icon.setImageDrawable(it) } }
+                preview.addView(icon, ViewGroup.LayoutParams((side - dp(10)) / 2, (side - dp(10)) / 2))
+            }
+            addView(preview, LinearLayout.LayoutParams(side, side))
+            if (showLabel) addView(label(folder?.title ?: "Folder", 11f, Color.WHITE).apply {
+                gravity = Gravity.CENTER; maxLines = 1; ellipsize = TextUtils.TruncateAt.END
+            }, LinearLayout.LayoutParams(-1, dp(22)).apply { topMargin = dp(5) })
+        }
+    }
+
+    private fun openFolder(key: String) {
+        val folder = store.folders.find { it.key == key } ?: return
+        val body = panelBase(folder.title, "Hold and drag an app out to home or the dock.", "folder")
+        val header = body.getChildAt(0) as LinearLayout
+        header.addView(pill("Rename", card, ink) { renameFolder(key) }, header.childCount - 1, LinearLayout.LayoutParams(dp(88), dp(40)))
+        val grid = GridView(this).apply { numColumns = store.settings.drawerColumns; verticalSpacing = dp(12); isVerticalScrollBarEnabled = false }
+        grid.adapter = object : BaseAdapter() {
+            override fun getCount() = folder.apps.size
+            override fun getItem(position: Int) = folder.apps[position]
+            override fun getItemId(position: Int) = position.toLong()
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View = appTile(folder.apps[position], true, true).apply {
+                layoutParams = AbsListView.LayoutParams(-1, dp(102)); isFocusable = false
+            }
+        }
+        grid.setOnItemClickListener { _, _, position, _ -> launch(folder.apps[position]) }
+        grid.setOnItemLongClickListener { _, view, position, _ ->
+            beginDrag(view, DragPayload(appKey = folder.apps[position], folderKey = key), fromPicker = true); true
+        }
+        body.addView(grid, LinearLayout.LayoutParams(-1, 0, 1f))
+    }
+
+    private fun renameFolder(key: String) {
+        if (store.settings.locked) { message("Unlock the layout in settings to edit folders."); return }
+        val folder = store.folders.find { it.key == key } ?: return
+        val name = EditText(this).apply {
+            setSingleLine(); setText(folder.title); selectAll(); setTextColor(ink)
+            filters = arrayOf(android.text.InputFilter.LengthFilter(60)); contentDescription = "Folder name"
+        }
+        showDialog(dialogBuilder().setTitle("Rename folder").setView(name).setNegativeButton("Cancel", null)
+            .setPositiveButton("Save") { _, _ ->
+                store.save(folders = store.folders.map { if (it.key == key) it.copy(title = name.text.toString().trim().ifEmpty { "Folder" }) else it })
+                renderHome(); if (panelKind == "folder") openFolder(key)
+            }.create())
+    }
+
+    private fun groupAt(candidate: HomeItem, payload: DragPayload?): LauncherState? {
+        if (payload == null || candidate.kind != ItemKind.APP) return null
+        val target = store.items.find { it.id != candidate.id && it.page == candidate.page && it.x == candidate.x && it.y == candidate.y && it.kind in listOf(ItemKind.APP, ItemKind.FOLDER) } ?: return null
+        return store.state.group(payload.source(), target.appKey, target.id)
+    }
+
+    private fun renderDrawerHandle() {
+        drawerButton.removeAllViews()
+        val payload = activeDrag
+        if (dragging && draggedItem?.kind == ItemKind.APP && payload != null) {
+            drawerButton.contentDescription = "App actions below dock"
+            drawerButton.addView(dropTarget("Hide", "close") { source -> afterDrag = {
+                store.saveHiddenApps(store.hiddenApps + source.appKey)
+                showDrawer(); message("App hidden. Restore it in Settings → Hidden apps.")
+            } }, LinearLayout.LayoutParams(0, -1, 1f))
+            drawerButton.addView(dropTarget("Uninstall", "trash") { source -> afterDrag = { uninstallApp(source.appKey) } }, LinearLayout.LayoutParams(0, -1, 1f))
+        } else {
+            drawerButton.contentDescription = "Open app drawer"
+            drawerButton.addView(Glyph(this, "up", 0xffdfebe1.toInt()), LinearLayout.LayoutParams(dp(24), dp(32)))
+        }
+        drawerButton.setOnClickListener { if (!dragging) showDrawer() }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun uninstallApp(key: String) {
+        val app = apps.find { it.key == key } ?: return
+        safeStart(Intent(Intent.ACTION_UNINSTALL_PACKAGE, Uri.parse("package:${app.info.componentName.packageName}")).apply {
+            putExtra(Intent.EXTRA_USER, app.info.user)
+        }, "Android could not uninstall this app. Open App info to manage it.")
+    }
+
     private fun widgetTile(item: HomeItem): View {
         val info = widgets.manager.getAppWidgetInfo(item.widgetId)
         if (info == null) return label("Widget unavailable\nTap to remove", 13f, Color.WHITE).apply {
@@ -403,7 +520,9 @@ class LauncherActivity : Activity() {
     }
 
     private data class DragPayload(val itemId: String? = null, val appKey: String = "", val fromDock: Boolean = false,
-        val widgetInfo: AppWidgetProviderInfo? = null)
+        val widgetInfo: AppWidgetProviderInfo? = null, val folderKey: String? = null) {
+        fun source() = MoveSource(appKey, itemId, fromDock, folderKey)
+    }
 
     private fun beginDrag(view: View, payload: DragPayload, fromPicker: Boolean = false) {
         if (store.settings.locked) { message("Layout is locked. Unlock it in settings."); return }
@@ -414,12 +533,12 @@ class LauncherActivity : Activity() {
         view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
         dragging = true; activeDrag = payload; afterDrag = null
         draggedItem = store.items.find { it.id == payload.itemId } ?: HomeItem(
-            kind = if (payload.widgetInfo != null) ItemKind.WIDGET else ItemKind.APP,
+            kind = if (payload.widgetInfo != null) ItemKind.WIDGET else if (payload.appKey.startsWith("folder:")) ItemKind.FOLDER else ItemKind.APP,
             appKey = payload.appKey, spanX = size.first, spanY = size.second)
-        lastEdge = 0; pager.pagingEnabled = false; pager.setEditing(true); renderTop()
+        lastEdge = 0; pager.pagingEnabled = false; pager.setEditing(true); renderTop(); renderDrawerHandle()
         val clip = ClipData(ClipDescription("Home item", arrayOf("application/vnd.app.still.launcher.item")), ClipData.Item(payload.appKey))
         if (view.startDragAndDrop(clip, View.DragShadowBuilder(view), payload, 0)) {
-            if (fromPicker) closePanel()
+            if (fromPicker) { closePanel(); activeDialog?.dismiss() }
         } else endDrag()
     }
 
@@ -444,7 +563,8 @@ class LauncherActivity : Activity() {
         val col = (x / (pager.width.toFloat() / store.settings.columns) - item.spanX / 2f).roundToInt().coerceIn(0, store.settings.columns - item.spanX)
         val row = (y / (pager.height.toFloat() / store.settings.rows) - item.spanY / 2f).roundToInt().coerceIn(0, store.settings.rows - item.spanY)
         val candidate = item.copy(page = currentPage, x = col, y = row)
-        workspace.dropAllowed = engine.fits(candidate, store.items); workspace.dropPreview = candidate
+        workspace.dropAllowed = engine.fits(candidate, store.items) || groupAt(candidate, activeDrag) != null
+        workspace.dropPreview = candidate
         return candidate
     }
 
@@ -464,12 +584,14 @@ class LauncherActivity : Activity() {
             DragEvent.ACTION_DROP -> {
                 main.removeCallbacks(edgeTurn); lastEdge = 0
                 val candidate = updateDropPreview(x, y)
-                if (candidate != null && engine.fits(candidate, store.items)) {
+                val grouped = candidate?.let { groupAt(it, payload) }
+                if (grouped != null) { store.save(grouped); renderHome() }
+                else if (candidate != null && engine.fits(candidate, store.items)) {
                     val provider = payload.widgetInfo
                     if (provider != null) afterDrag = { widgets.add(provider, candidate) }
                     else {
-                        store.save(items = store.items.filterNot { it.id == candidate.id } + candidate,
-                            dock = if (payload.fromDock) store.dock.filterNot { it == payload.appKey } else store.dock)
+                        val state = store.state.without(payload.source())
+                        store.save(state.copy(items = state.items + candidate))
                         renderHome()
                     }
                 } else if (candidate != null) message("That space is occupied.")
@@ -485,7 +607,7 @@ class LauncherActivity : Activity() {
         if (!dragging) return
         dragging = false; draggedItem = null; activeDrag = null; workspace.dropPreview = null
         pager.pagingEnabled = true; pager.setEditing(editing)
-        main.removeCallbacks(edgeTurn); lastEdge = 0; renderTop(); renderDock(); dock.alpha = 1f
+        main.removeCallbacks(edgeTurn); lastEdge = 0; renderTop(); renderDock(); renderDrawerHandle(); dock.alpha = 1f
         val action = afterDrag; afterDrag = null
         if (action != null) main.post { if (!destroyed) action() }
     }
@@ -498,7 +620,7 @@ class LauncherActivity : Activity() {
         setOnDragListener { _, event ->
             when (event.action) {
                 DragEvent.ACTION_DRAG_STARTED -> true
-                DragEvent.ACTION_DRAG_ENTERED -> { alpha = .5f; true }
+                DragEvent.ACTION_DRAG_ENTERED -> { alpha = .5f; workspace.dropPreview = null; main.removeCallbacks(edgeTurn); lastEdge = 0; true }
                 DragEvent.ACTION_DRAG_EXITED, DragEvent.ACTION_DRAG_ENDED -> { alpha = 1f; true }
                 DragEvent.ACTION_DROP -> { (event.localState as? DragPayload)?.let(dropped); true }
                 else -> true
@@ -510,7 +632,7 @@ class LauncherActivity : Activity() {
         payload.itemId?.let { id ->
             store.items.find { it.id == id }?.let { if (it.kind == ItemKind.WIDGET) widgets.host.deleteAppWidgetId(it.widgetId) }
         }
-        store.save(items = store.items.filterNot { it.id == payload.itemId }, dock = if (payload.fromDock) store.dock.filterNot { it == payload.appKey } else store.dock)
+        store.save(store.state.without(payload.source()))
         renderHome()
     }
 
@@ -540,15 +662,17 @@ class LauncherActivity : Activity() {
     private fun itemMenu(item: HomeItem) {
         if (store.settings.locked) { message("Layout is locked. Unlock it in settings."); return }
         val options = mutableListOf("Move to another cell", "Move to page…")
-        if (item.kind != ItemKind.APP) options.add("Resize")
+        if (item.kind in listOf(ItemKind.CLOCK, ItemKind.WIDGET)) options.add("Resize")
+        if (item.kind == ItemKind.FOLDER) options.addAll(listOf("Rename folder", "Pin to dock"))
         if (item.kind == ItemKind.WIDGET && widgets.manager.getAppWidgetInfo(item.widgetId)?.configure != null) options.add("Widget settings")
         if (item.kind == ItemKind.APP) options.addAll(listOf("Pin to dock", "App info"))
         options.add("Remove from home")
-        dialog(if (item.kind == ItemKind.APP) apps.find { it.key == item.appKey }?.label ?: "App" else if (item.kind == ItemKind.CLOCK) "Clock" else "Widget", options) { index ->
+        dialog(if (item.kind == ItemKind.APP) apps.find { it.key == item.appKey }?.label ?: "App" else if (item.kind == ItemKind.FOLDER) store.folders.find { it.key == item.appKey }?.title ?: "Folder" else if (item.kind == ItemKind.CLOCK) "Clock" else "Widget", options) { index ->
             when (options[index]) {
                 "Move to another cell" -> moveItem(item)
                 "Move to page…" -> chooseItemPage(item)
                 "Resize" -> resizeItem(item)
+                "Rename folder" -> renameFolder(item.appKey)
                 "Widget settings" -> widgets.reconfigure(item.widgetId)
                 "Pin to dock" -> pinDock(item.appKey, store.dock.size, item.id)
                 "App info" -> appInfo(item.appKey)
@@ -579,6 +703,13 @@ class LauncherActivity : Activity() {
     }
 
     private fun dockMenu(key: String) {
+        if (key.startsWith("folder:")) {
+            dialog(store.folders.find { it.key == key }?.title ?: "Folder", listOf("Open folder", "Rename folder", "Remove from dock")) { index ->
+                if (index == 0) openFolder(key)
+                else if (!store.settings.locked) { if (index == 1) renameFolder(key) else { store.save(dock = store.dock.filterNot { it == key }); renderDock() } }
+                else message("Unlock the layout in settings to edit the dock.")
+            }; return
+        }
         dialog(apps.find { it.key == key }?.label ?: "Dock app", listOf("Replace app", "Remove from dock", "App info")) { index ->
             if (index != 2 && store.settings.locked) { message("Unlock the layout in settings to edit the dock."); return@dialog }
             when (index) {
@@ -593,17 +724,23 @@ class LauncherActivity : Activity() {
         dialog("Choose dock app", apps.map { it.label }) { index -> pinDock(apps[index].key, slot, replace = true) }
     }
 
-    private fun pinDock(key: String, slot: Int, sourceId: String? = null, replace: Boolean = false) {
+    private fun pinDock(key: String, slot: Int, sourceId: String? = null, replace: Boolean = false, fromFolder: String? = null) {
         if (store.settings.locked) { message("Unlock the layout in settings to edit the dock."); return }
-        val list = store.dock.filterNot { it == key }.toMutableList()
+        val base = store.state.without(MoveSource(key, sourceId, folderKey = fromFolder))
+        val list = base.dock.filterNot { it == key }.toMutableList()
         if (list.size >= store.settings.dockSlots && !replace) {
-            dialog("Replace a dock app", store.dock.map { apps.find { app -> app.key == it }?.label ?: "Unavailable" }) { i -> pinDock(key, i, sourceId, true) }
+            dialog("Replace a dock app", store.dock.map { apps.find { app -> app.key == it }?.label ?: "Unavailable" }) { i -> pinDock(key, i, sourceId, true, fromFolder) }
             return
         }
         val index = slot.coerceIn(0, list.size)
         if (replace && index < list.size) list[index] = key else list.add(index, key)
         if (list.size > store.settings.dockSlots) list.removeAt(list.lastIndex)
-        store.save(items = store.items.filterNot { it.id == sourceId }, dock = list)
+        var state = base
+        // Replacing a dock folder moves it to home so its contents remain reachable.
+        base.dock.filter { it.startsWith("folder:") && it !in list && it != key }.forEach { displaced ->
+            engine.vacant(HomeItem(kind = ItemKind.FOLDER, appKey = displaced), state.items)?.let { state = state.copy(items = state.items + it) }
+        }
+        store.save(state.copy(dock = list))
         renderHome()
     }
 
@@ -621,7 +758,7 @@ class LauncherActivity : Activity() {
     }
 
     private fun showDrawer(initialQuery: String = "") {
-        val body = panelBase("All apps", "", "drawer")
+        val body = panelBase("", "", "drawer")
         drawerSummary = body.findViewWithTag("panelSubtitle")
         val header = body.getChildAt(0) as LinearLayout
         header.addView(pill("Widgets", card, ink) { showWidgets() }, header.childCount - 1, LinearLayout.LayoutParams(dp(88), dp(40)))
@@ -639,7 +776,7 @@ class LauncherActivity : Activity() {
         searchWrap.addView(search, LinearLayout.LayoutParams(0, dp(56), 1f))
         val clear = iconButton("close", "Clear search", muted) { search.text.clear() }
         searchWrap.addView(clear, LinearLayout.LayoutParams(dp(48), dp(48)))
-        body.addView(searchWrap, LinearLayout.LayoutParams(-1, dp(56)).apply { bottomMargin = dp(18) })
+
         val gridFrame = FrameLayout(this)
         val grid = GridView(this).apply {
             numColumns = store.settings.drawerColumns; verticalSpacing = dp(12); horizontalSpacing = dp(2)
@@ -652,6 +789,7 @@ class LauncherActivity : Activity() {
         val adapter = AppsAdapter(); drawerAdapter = adapter; grid.adapter = adapter
         (body as PullDownDrawerLayout).canPull = { !grid.canScrollVertically(-1) }
         body.addView(gridFrame, LinearLayout.LayoutParams(-1, 0, 1f))
+        body.addView(searchWrap, LinearLayout.LayoutParams(-1, dp(56)).apply { topMargin = dp(8) })
         search.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { adapter.filter(s.toString()); clear.visibility = if (s.isNullOrEmpty()) View.INVISIBLE else View.VISIBLE }
@@ -670,8 +808,9 @@ class LauncherActivity : Activity() {
     }
 
     private fun appOptions(app: LaunchableApp) {
-        dialog(app.label, listOf("Add to home", "Pin to dock", "App info", "Hide from All apps")) { choice -> when (choice) {
+        dialog(app.label, listOf("Add to home", "Pin to dock", "App info", "Hide from All apps", "Uninstall")) { choice -> when (choice) {
             0 -> addApp(app.key); 1 -> pinDock(app.key, store.dock.size); 2 -> appInfo(app.key)
+            4 -> uninstallApp(app.key)
             3 -> {
                 store.saveHiddenApps(store.hiddenApps + app.key)
                 drawerAdapter?.filter(drawerAdapter?.query ?: "")
@@ -718,17 +857,17 @@ class LauncherActivity : Activity() {
     }
 
     private fun panelBase(title: String, subtitle: String, kind: String): LinearLayout {
-        closePanel()
+        closePanel(); panelKind = kind
         val body = (if (kind == "drawer") PullDownDrawerLayout(this) else LinearLayout(this)).apply {
-            orientation = LinearLayout.VERTICAL; background = rounded(surface, dp(28).toFloat())
+            orientation = LinearLayout.VERTICAL; background = rounded(if (kind == "drawer") tinted(store.settings.drawerColor.ifEmpty { if (light) "#f3f5f0" else "#101b18" }, store.settings.drawerOpacity) else surface, dp(28).toFloat())
             setPadding(dp(24), dp(8), dp(24), dp(12)); isClickable = true
         }
         val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        header.addView(label(kind.uppercase(Locale.ROOT), 10f, muted, true).apply { letterSpacing = .18f }, LinearLayout.LayoutParams(0, -2, 1f))
+        header.addView(if (kind == "drawer") View(this) else label(kind.uppercase(Locale.ROOT), 10f, muted, true).apply { letterSpacing = .18f }, LinearLayout.LayoutParams(0, -2, 1f))
         header.addView(iconButton("close", "Back to home", ink) { closePanel() }, LinearLayout.LayoutParams(dp(48), dp(48)))
         body.addView(header, LinearLayout.LayoutParams(-1, dp(52)))
-        body.addView(label(title, 34f, ink).apply { letterSpacing = -.04f }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
-        body.addView(label(subtitle, 13f, muted).apply { tag = "panelSubtitle"; setLineSpacing(dp(3).toFloat(), 1f) }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10); bottomMargin = dp(24) })
+        if (title.isNotEmpty()) body.addView(label(title, 34f, ink).apply { letterSpacing = -.04f }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
+        if (kind != "drawer") body.addView(label(subtitle, 13f, muted).apply { tag = "panelSubtitle"; setLineSpacing(dp(3).toFloat(), 1f) }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10); bottomMargin = dp(24) })
         home.visibility = View.INVISIBLE
         panel = body; panelKind = kind
         if (body is PullDownDrawerLayout) {
@@ -767,6 +906,8 @@ class LauncherActivity : Activity() {
         switchRow(content, "App labels", "Show names on the home screen", store.settings.labels) { store.save(settings = store.settings.copy(labels = it)); renderHome() }
         switchRow(content, "Lock layout", "Keep icons and widgets in place", store.settings.locked) { store.save(settings = store.settings.copy(locked = it)); if (it) setEditing(false) }
         section(content, "LOOK & FEEL")
+        settingsRow(content, "Drawer colour & opacity", "${store.settings.drawerColor.ifEmpty { "Theme colour" }} · ${store.settings.drawerOpacity}% opacity", "grid") { appearanceControls(true) }
+        settingsRow(content, "Dock colour & opacity", "${store.settings.dockColor} · ${store.settings.dockOpacity}% opacity", "home") { appearanceControls(false) }
         settingsRow(content, "Wallpapers", "Photos, landscapes, and device wallpapers", "wallpaper") { showWallpapers() }
         settingsRow(content, "Appearance", store.settings.theme.replaceFirstChar { it.uppercase() }, "settings") {
             val themes = listOf("system", "light", "dark")
@@ -783,6 +924,68 @@ class LauncherActivity : Activity() {
         }
         section(content, "STILL LAUNCHER")
         content.addView(label("A quieter kind of home.\nVersion ${BuildConfig.VERSION_NAME} · Works entirely on your device.\nNo ads. No account. No network permission.", 12f, muted).apply { setLineSpacing(dp(6).toFloat(), 1f); setPadding(dp(4), dp(8), 0, dp(24)) })
+    }
+
+    private fun tinted(hex: String, opacity: Int): Int = (Color.parseColor(hex) and 0x00ffffff) or ((opacity * 255 / 100) shl 24)
+
+    private fun appearanceControls(drawer: Boolean) {
+        val settings = store.settings
+        var opacity = if (drawer) settings.drawerOpacity else settings.dockOpacity
+        val defaultColor = if (drawer) { if (light) "#f3f5f0" else "#101b18" } else "#effff0"
+        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(8), dp(24), dp(8)) }
+        val preview = label("Preview", 18f, ink, true).apply { gravity = Gravity.CENTER; setPadding(dp(12), dp(20), dp(12), dp(20)) }
+        content.addView(preview, LinearLayout.LayoutParams(-1, dp(84)))
+        val hex = EditText(this).apply {
+            setSingleLine(); setText(if (drawer) settings.drawerColor.ifEmpty { defaultColor } else settings.dockColor)
+            hint = "#RRGGBB"; contentDescription = "Custom colour hex"; setTextColor(ink)
+            filters = arrayOf(android.text.InputFilter.LengthFilter(7))
+        }
+        content.addView(hex, LinearLayout.LayoutParams(-1, dp(56)))
+        val swatches = LinearLayout(this)
+        listOf("#101b18", "#effff0", "#183b56", "#573654", "#8a432b", "#000000").forEach { value ->
+            swatches.addView(View(this).apply {
+                background = rounded(Color.parseColor(value), dp(12).toFloat(), 0xff888888.toInt())
+                contentDescription = "Colour $value"; isFocusable = true; setOnClickListener { hex.setText(value) }
+            }, LinearLayout.LayoutParams(0, dp(44), 1f).apply { setMargins(dp(3), dp(4), dp(3), dp(4)) })
+        }
+        content.addView(swatches)
+        val amount = label("Opacity · $opacity%", 15f, ink).apply { setPadding(0, dp(18), 0, dp(4)) }
+        content.addView(amount)
+        val slider = SeekBar(this).apply { max = 100; progress = opacity; contentDescription = "Opacity" }
+        content.addView(slider, LinearLayout.LayoutParams(-1, dp(56)))
+        fun update() {
+            val value = hex.text.toString()
+            if (value.matches(Regex("#[a-fA-F0-9]{6}"))) {
+                preview.background = rounded(tinted(value, opacity), dp(20).toFloat())
+                val color = Color.parseColor(value)
+                preview.setTextColor(if (Color.red(color) * .299 + Color.green(color) * .587 + Color.blue(color) * .114 > 150) Color.BLACK else Color.WHITE)
+                hex.error = null
+            }
+            amount.text = "Opacity · $opacity%"
+        }
+        hex.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = update()
+            override fun afterTextChanged(s: Editable?) = Unit
+        })
+        slider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) { opacity = progress; update() }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+        })
+        val dialog = dialogBuilder().setTitle(if (drawer) "Drawer appearance" else "Dock appearance").setView(content)
+            .setNegativeButton("Cancel", null).setPositiveButton("Apply", null)
+            .setNeutralButton("Reset") { _, _ ->
+                store.save(settings = if (drawer) settings.copy(drawerColor = "", drawerOpacity = 100) else settings.copy(dockColor = "#effff0", dockOpacity = 19))
+                renderHome(); showSettings()
+            }.create()
+        dialog.setOnShowListener { dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            val value = hex.text.toString()
+            if (!value.matches(Regex("#[a-fA-F0-9]{6}"))) { hex.error = "Use a colour such as #183b56"; return@setOnClickListener }
+            store.save(settings = if (drawer) settings.copy(drawerColor = value, drawerOpacity = opacity) else settings.copy(dockColor = value, dockOpacity = opacity))
+            dialog.dismiss(); renderHome(); showSettings()
+        } }
+        update(); showDialog(dialog)
     }
 
     private fun manageHiddenApps() {
@@ -880,7 +1083,7 @@ class LauncherActivity : Activity() {
     private fun changeDockSize(slots: Int) {
         if (store.settings.locked) { message("Unlock the layout before changing the dock."); return }
         var layout = store.items
-        store.dock.drop(slots).forEach { key -> engine.vacant(HomeItem(kind = ItemKind.APP, appKey = key), layout)?.let { layout = layout + it } }
+        store.dock.drop(slots).forEach { key -> engine.vacant(HomeItem(kind = if (key.startsWith("folder:")) ItemKind.FOLDER else ItemKind.APP, appKey = key), layout)?.let { layout = layout + it } }
         store.save(items = layout, dock = store.dock.take(slots), settings = store.settings.copy(dockSlots = slots)); renderHome(); showSettings()
     }
 
@@ -1070,15 +1273,59 @@ class LauncherActivity : Activity() {
 
     private fun importPhoto(uri: Uri) {
         io.execute {
-            val result = runCatching {
-                val image = decodePhoto(uri)
-                try {
-                    check(WallpaperManager.getInstance(this).setBitmap(image, null, true, WallpaperManager.FLAG_SYSTEM) > 0)
-                } finally { image.recycle() }
+            val result = runCatching { decodePhoto(uri) }
+            main.post {
+                if (destroyed) { result.getOrNull()?.recycle(); return@post }
+                result.onSuccess { image ->
+                    val preview = ImageView(this).apply {
+                        setImageBitmap(image); scaleType = ImageView.ScaleType.CENTER_CROP; contentDescription = "Wallpaper preview"
+                    }
+                    val frame = FrameLayout(this).apply {
+                        addView(preview, FrameLayout.LayoutParams(-1, -1))
+                        layoutParams = ViewGroup.LayoutParams(-1, dp(340))
+                        minimumHeight = dp(340)
+                    }
+                    val dialog = dialogBuilder().setTitle("Photo wallpaper").setView(frame)
+                        .setNegativeButton("Cancel", null).setPositiveButton("Apply", null).create()
+                    var applying = false
+                    dialog.setOnDismissListener { if (!applying) image.recycle() }
+                    dialog.setOnShowListener { dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                        if (!applying) {
+                            applying = true; dialog.dismiss(); applyPhoto(image)
+                        }
+                    } }
+                    showDialog(dialog)
+                }.onFailure { android.util.Log.w("StillWallpaper", "Unable to read selected image", it); message("Unable to read this image. Download it to your device and choose it from Files.") }
             }
-            main.post { if (!destroyed) result.onSuccess {
-                store.save(settings = store.settings.copy(wallpaper = "photo")); closePanel(); renderHome()
-            }.onFailure { message("That image could not be used as a wallpaper.") } }
+        }
+    }
+
+    private fun applyPhoto(image: Bitmap) {
+        // Match the visible phone instead of handing an arbitrary photo aspect ratio to OEM croppers.
+        val display = resources.displayMetrics
+        val width = display.widthPixels.coerceAtMost(1440)
+        val height = (width * display.heightPixels.toFloat() / display.widthPixels).toInt()
+        io.execute {
+            val result = runCatching {
+                val cropped = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                try {
+                    val scale = maxOf(width.toFloat() / image.width, height.toFloat() / image.height)
+                    val left = (width - image.width * scale) / 2f; val top = (height - image.height * scale) / 2f
+                    Canvas(cropped).drawBitmap(image, null, android.graphics.RectF(left, top, left + image.width * scale, top + image.height * scale), android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG))
+                    val pending = java.io.File(filesDir, "home-wallpaper.pending.jpg")
+                    pending.outputStream().use { check(cropped.compress(Bitmap.CompressFormat.JPEG, 95, it)) }
+                    val manager = WallpaperManager.getInstance(this)
+                    check(manager.isWallpaperSupported && manager.isSetWallpaperAllowed)
+                    val id = manager.setBitmap(cropped, null, true, WallpaperManager.FLAG_SYSTEM)
+                    check(id > 0)
+                    check(pending.renameTo(java.io.File(filesDir, "home-wallpaper.jpg")))
+                    id
+                } finally { cropped.recycle(); image.recycle() }
+            }
+            main.post { if (!destroyed) result.onSuccess { id ->
+                store.photoWallpaperId = id
+                store.save(settings = store.settings.copy(wallpaper = "photo")); closePanel(); renderHome(); message("Wallpaper applied")
+            }.onFailure { android.util.Log.w("StillWallpaper", "Unable to apply photo", it); message("Android could not set this wallpaper. Check your device's wallpaper restrictions.") } }
         }
     }
 
@@ -1131,7 +1378,13 @@ class LauncherActivity : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (widgets.result(requestCode, resultCode)) return
-        if (requestCode == PHOTO && resultCode == RESULT_OK) data?.data?.let(::importPhoto)
+        if (requestCode == PHOTO && resultCode == RESULT_OK) {
+            val uri = data?.data ?: data?.clipData?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.uri
+            if (uri != null) {
+                runCatching { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                importPhoto(uri)
+            } else message("No image was returned by the picker.")
+        }
         if (requestCode == HOME_ROLE && panelKind == "settings") showSettings()
     }
 

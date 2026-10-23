@@ -98,3 +98,7 @@ See `docs/VALIDATION.md`, `docs/KEYBOARD_VALIDATION.md`, `docs/WALLPAPER_VALIDAT
 - [AppWidgetHostView size reporting](https://developer.android.com/reference/android/appwidget/AppWidgetHostView#updateAppWidgetSize(android.os.Bundle,%20java.util.List%3Candroid.util.SizeF%3E))
 - [LauncherApps](https://developer.android.com/reference/android/content/pm/LauncherApps)
 - [Default Home role](https://developer.android.com/reference/android/app/role/RoleManager#ROLE_HOME)
+
+## 0.4.0
+
+Folders on home screens and in the dock, bottom drawer search, Hide/Uninstall drop targets below the dock, photo wallpaper previews, and independent drawer/dock colours and opacity. See [usage and persistence](docs/FOLDERS_AND_APPEARANCE.md). Distributed through the private store at https://apps.gravitas.cool/apps/launcher.

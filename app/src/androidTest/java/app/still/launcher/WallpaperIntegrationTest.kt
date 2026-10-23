@@ -62,10 +62,49 @@ class WallpaperIntegrationTest {
                 .filterIsInstance<LauncherActivity>().single()
             result.invoke(current, LauncherActivity.PHOTO, Activity.RESULT_OK, Intent().setData(Uri.fromFile(image)))
         }
+        LauncherTestUi.tapText("Apply")
         assertBackground(green, "photo")
         setWallpaper(blue)
         assertBackground(blue, "external-after-photo")
         image.delete()
+    }
+
+    @androidx.test.filters.SdkSuppress(minSdkVersion = 29)
+    @Test fun testActualFilesPickerPreviewAndRestart() = withLauncher("device") { activity ->
+        val values = android.content.ContentValues().apply {
+            put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, "launcher-custom-wallpaper.png")
+            put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/png")
+            put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, "Download/")
+        }
+        val uri = context.contentResolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)!!
+        try {
+            val bitmap = Bitmap.createBitmap(600, 400, Bitmap.Config.ARGB_8888).apply { eraseColor(green) }
+            context.contentResolver.openOutputStream(uri)!!.use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }; bitmap.recycle()
+            LauncherTestUi.settings(activity)
+            click(activity) { it.contentDescription?.startsWith("Wallpapers,") == true }
+            click(activity) { it.contentDescription?.startsWith("Choose a photo,") == true }
+            // The system document provider returns a granted content URI, exactly as a user selection does.
+            fun node(text: String) = instrumentation.uiAutomation.rootInActiveWindow?.findAccessibilityNodeInfosByText(text)?.firstOrNull { it.text?.toString() == text }
+            SystemClock.sleep(700)
+            if (node("launcher-custom-wallpaper.png") == null) {
+                fun roots(n: android.view.accessibility.AccessibilityNodeInfo?): android.view.accessibility.AccessibilityNodeInfo? {
+                    if (n == null) return null
+                    if (n.contentDescription == "Show roots") return n
+                    for (i in 0 until n.childCount) roots(n.getChild(i))?.let { return it }
+                    return null
+                }
+                roots(instrumentation.uiAutomation.rootInActiveWindow)?.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
+                LauncherTestUi.tapText("Downloads")
+            }
+            LauncherTestUi.tapText("launcher-custom-wallpaper.png")
+            LauncherTestUi.tapText("Apply")
+            await { LauncherStore(context).settings.wallpaper == "photo" }
+            assertBackground(green, "files-picker")
+            instrumentation.runOnMainSync { activity.recreate() }
+            instrumentation.waitForIdleSync()
+            assertBackground(green, "files-picker-restart")
+            assertTrue(File(context.filesDir, "home-wallpaper.jpg").length() > 0)
+        } finally { context.contentResolver.delete(uri, null, null) }
     }
 
     private fun withLauncher(style: String, test: (LauncherActivity) -> Unit) {
