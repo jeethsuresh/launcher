@@ -4,7 +4,7 @@ A native Kotlin Android home launcher inspired by the simplicity of Fossify. And
 
 ## Download
 
-Get the installable APK from [GitHub Releases](https://github.com/jeethsuresh/launcher/releases). Releases are debug-signed previews for testing on your phone.
+Get the installable APK from [GitHub Releases](https://github.com/jeethsuresh/launcher/releases). GitHub automatically builds and publishes release APKs after a version bump on `main`, preserving the original preview signing certificate so installed apps update in place. See [signed Android releases](ANDROID_RELEASES.md).
 
 <img src="docs/images/home.png" alt="Still Launcher home screen with a clock widget and app dock" width="320" />
 
@@ -88,7 +88,7 @@ A future feed can be a separate panel alongside the drawer and settings, with it
 
 ## Current scope
 
-This is a functional first version, delivered as a debug-signed APK. It is not a Play Store release. Portrait phone layout and English copy are the initial focus. Folders, notification dots, icon packs, pinned app shortcuts, Android Private Space integration, backup/restore, a news feed, weather services, and device-wide search are not included. Standard accessible profiles use LauncherApps; enterprise and OEM-specific policies still need physical-device testing. Layout backup is disabled because widget IDs cannot safely be restored as ordinary preference values.
+This is a functional launcher preview that preserves its original signing identity. It is not a Play Store release. Portrait phone layout and English copy are the initial focus. Folders, notification dots, icon packs, pinned app shortcuts, Android Private Space integration, backup/restore, a news feed, weather services, and device-wide search are not included. Standard accessible profiles use LauncherApps; enterprise and OEM-specific policies still need physical-device testing. Layout backup is disabled because widget IDs cannot safely be restored as ordinary preference values.
 
 See `docs/VALIDATION.md`, `docs/KEYBOARD_VALIDATION.md`, `docs/WALLPAPER_VALIDATION.md`, `docs/HIDDEN_APPS.md`, and `docs/HOME_DRAGGING.md` for build and emulator checks.
 

@@ -1,5 +1,16 @@
 plugins { id("com.android.application"); id("org.jetbrains.kotlin.android") }
 
+val releaseKeystore = System.getenv("RELEASE_KEYSTORE")
+val releaseStorePassword = System.getenv("RELEASE_STORE_PASSWORD")
+val releaseAlias = System.getenv("RELEASE_KEY_ALIAS")
+val releaseKeyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+if (gradle.startParameter.taskNames.any { it.contains("release", ignoreCase = true) }) {
+    require(listOf(releaseKeystore, releaseStorePassword, releaseAlias, releaseKeyPassword).all { !it.isNullOrBlank() }) {
+        "Release signing requires the original Still Launcher key. See ANDROID_RELEASES.md."
+    }
+    require(releaseAlias == "androiddebugkey") { "Preserve Still Launcher's existing signing identity." }
+}
+
 android {
     namespace = "app.still.launcher"
     compileSdk = 35
@@ -14,7 +25,18 @@ android {
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17; isCoreLibraryDesugaringEnabled = true }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { buildConfig = true }
-    buildTypes { release { isMinifyEnabled = false } }
+    signingConfigs {
+        create("permanentRelease") {
+            storeFile = releaseKeystore?.let { file(it) }
+            storePassword = releaseStorePassword
+            keyAlias = releaseAlias
+            keyPassword = releaseKeyPassword
+        }
+    }
+    buildTypes { release {
+        isMinifyEnabled = false
+        signingConfig = signingConfigs.getByName("permanentRelease")
+    } }
     lint { abortOnError = true }
 }
 dependencies {
