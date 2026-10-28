@@ -290,6 +290,9 @@ public abstract class AndroidWordLevelSpellCheckerSession extends Session {
             // Handle special patterns like email, URI, telephone number.
             final int checkability = getCheckabilityInScript(text, mScript);
             if (CHECKABILITY_CHECKABLE != checkability) {
+                if (CHECKABILITY_CONTAINS_PERIOD != checkability) {
+                    return AndroidSpellCheckerService.getNotInDictEmptySuggestions(false);
+                }
                 // CHECKABILITY_CONTAINS_PERIOD Typo should not be reported when text is a valid word followed by a single period (end of sentence).
                 boolean periodOnlyAtLastIndex = text.indexOf(Constants.CODE_PERIOD) == (text.length() - 1);
                 if (CHECKABILITY_CONTAINS_PERIOD == checkability) {

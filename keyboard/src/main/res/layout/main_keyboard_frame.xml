@@ -12,6 +12,13 @@
     android:layout_gravity="bottom"
     android:orientation="vertical" >
 
+    <LinearLayout
+        android:id="@+id/still_auth_suggestions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone" />
+
     <include
         android:id="@+id/strip_container"
         layout="@layout/strip_container" />

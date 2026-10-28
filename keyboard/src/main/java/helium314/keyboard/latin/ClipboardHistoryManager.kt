@@ -46,6 +46,7 @@ class ClipboardHistoryManager(
     }
 
     override fun onPrimaryClipChanged() {
+        dontShowCurrentSuggestion = false
         // Make sure we read clipboard content only if history settings is set
         if (latinIME.mSettings.current?.mClipboardHistoryEnabled == true) {
             fetchPrimaryClip()
@@ -56,10 +57,12 @@ class ClipboardHistoryManager(
     private fun fetchPrimaryClip() {
         val clipData = clipboardManager.primaryClip ?: return
         if (clipData.itemCount == 0 || clipData.description?.hasMimeType("text/*") == false) return
+        if (ClipboardManagerCompat.getClipSensitivity(clipData.description) == true) return
         clipData.getItemAt(0)?.let { clipItem ->
             val timeStamp = ClipboardManagerCompat.getClipTimestamp(clipData) ?: System.currentTimeMillis()
             val content = clipItem.coerceToText(latinIME)
             if (TextUtils.isEmpty(content)) return
+            if (helium314.keyboard.latin.still.OneTimeCodes.fromClipboard(content.toString()) != null) return
 
             val duplicateEntryIndex = historyEntries.indexOfFirst { it.content == content.toString() }
             if (duplicateEntryIndex != -1) {
@@ -192,6 +195,8 @@ class ClipboardHistoryManager(
         if (System.currentTimeMillis() - timeStamp > RECENT_TIME_MILLIS) return null
         val content = clipItem.coerceToText(latinIME)
         if (TextUtils.isEmpty(content)) return null
+        // Short codes have their own expiring row, independent of the three-minute paste chip.
+        if (helium314.keyboard.latin.still.OneTimeCodes.fromClipboard(content.toString()) != null) return null
         val inputType = editorInfo?.inputType ?: InputType.TYPE_NULL
         if (InputTypeUtils.isNumberInputType(inputType) && !content.isValidNumber()) return null
 

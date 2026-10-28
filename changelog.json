@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "version": "0.4.0",
-  "versionCode": 6,
+  "version": "0.4.1",
+  "versionCode": 7,
   "changes": [
-    "Search the app drawer from the bottom and drag apps below the dock to hide or uninstall them.",
-    "Create folders by dropping apps together on home screens or the dock.",
-    "Preview and crop photo wallpapers, with reliable display after restart.",
-    "Customize drawer and dock colors and opacity independently."
+    "Show native password-manager suggestions, including Proton Pass, above the keyboard on Android 11 and later.",
+    "Suggest recently copied verification codes and optional codes from newly received SMS texts for 30 seconds.",
+    "Keep short verification codes and sensitive clipboard content out of keyboard clipboard history.",
+    "Avoid false spelling warnings for text that cannot be spellchecked."
   ]
 }

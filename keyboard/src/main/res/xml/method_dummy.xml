@@ -19,7 +19,7 @@ the system picker crashes on some devices for unknown reasons.
         android:settingsActivity="app.still.launcher.KeyboardSetupActivity"
         android:isDefault="@bool/im_is_default"
         android:supportsSwitchingToNextInputMethod="true"
-        android:supportsInlineSuggestions="false"
+        android:supportsInlineSuggestions="true"
         tools:targetApi="r">
     <subtype android:icon="@drawable/ic_ime_switcher"
             android:imeSubtypeExtraValue="dummy"

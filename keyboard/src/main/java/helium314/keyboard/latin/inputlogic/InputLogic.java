@@ -209,6 +209,15 @@ public final class InputLogic {
      * @param event the input event containing the data.
      * @return the complete transaction object
      */
+    public InputTransaction onAuthenticationCodeInput(final SettingsValues settingsValues,
+            final Event event, final int keyboardShiftMode, final LatinIME.UIHandler handler) {
+        // Codes are literal input, with no autocorrection, word learning, or automatic spaces.
+        mConnection.finishComposingText();
+        resetComposingState(true);
+        mSpaceState = SpaceState.NONE;
+        return onTextInput(settingsValues, event, keyboardShiftMode, handler);
+    }
+
     public InputTransaction onTextInput(final SettingsValues settingsValues, final Event event,
             final int keyboardShiftMode, final LatinIME.UIHandler handler) {
         final String rawText = event.getTextToCommit().toString();
