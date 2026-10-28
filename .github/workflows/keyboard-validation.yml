@@ -23,6 +23,11 @@ jobs:
           log-accepted-android-sdk-licenses: false
       - name: Install the production toolchain and test image
         run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'ndk;27.0.12077973' 'emulator' 'system-images;android-35;google_apis;x86_64'
+      - name: Install and verify emulator runtime libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libpulse0 libasound2t64 libnss3 libgl1 libvulkan1 libx11-6 libx11-xcb1 libxcb1 libxext6 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libxi6 libxtst6 libdbus-1-3
+          "$ANDROID_HOME/emulator/emulator" -no-metrics -version
       - name: Unit tests, lint and debug APKs
         run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest
       - name: Boot an isolated emulator
