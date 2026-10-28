@@ -193,6 +193,14 @@ public abstract class AndroidWordLevelSpellCheckerSession extends Session {
     private static int getCheckabilityInScript(final String text, final String script) {
         if (TextUtils.isEmpty(text) || text.length() <= 1) return CHECKABILITY_TOO_SHORT;
 
+        // Inspect the whole token before returning for a period. A dot may occur
+        // before the @ or slash in an address, and codes/identifiers aren't words.
+        for (int i = 0; i < text.length(); i = text.offsetByCodePoints(i, 1)) {
+            final int cp = text.codePointAt(i);
+            if (cp == '@' || cp == '/' || cp == '_') return CHECKABILITY_EMAIL_OR_URL;
+            if (Character.isDigit(cp)) return CHECKABILITY_TOO_MANY_NON_LETTERS;
+        }
+
         // TODO: check if an equivalent processing can't be done more quickly with a
         // compiled regexp.
         // Filter by first letter

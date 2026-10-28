@@ -44,5 +44,7 @@ jobs:
           adb shell ime enable app.still.launcher/helium314.keyboard.latin.LatinIME
           adb shell ime set app.still.launcher/helium314.keyboard.latin.LatinIME
           adb shell settings put secure show_ime_with_hard_keyboard 1
+          adb shell settings put secure spell_checker_enabled 1
+          adb shell settings put secure selected_spell_checker app.still.launcher/helium314.keyboard.latin.spellcheck.AndroidSpellCheckerService
       - name: Real dictionary and code suggestion regressions
         run: ./gradlew --no-daemon connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.still.launcher.KeyboardSuggestionTest

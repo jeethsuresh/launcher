@@ -7,6 +7,10 @@ import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
+import android.view.textservice.SuggestionsInfo
+import android.view.textservice.TextInfo
+import android.view.textservice.TextServicesManager
+import android.view.textservice.SpellCheckerSession
 import android.widget.EditText
 import android.widget.TextView
 import androidx.test.platform.app.InstrumentationRegistry
@@ -21,6 +25,9 @@ import helium314.keyboard.latin.settings.SettingsValuesForSuggestion
 import org.junit.Assert.*
 import org.junit.Test
 import java.util.Locale
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.ConcurrentHashMap
 
 /** Runs against the packaged native dictionaries, real IME connection and rendered code row. */
 class KeyboardSuggestionTest {
@@ -120,5 +127,35 @@ class KeyboardSuggestionTest {
                 assertTrue("$typo must offer $expected in the visible strip: $shown", expected in shown)
             }
         }
+    }
+
+    @Suppress("DEPRECATION")
+    @Test fun spellcheckerSuggestsCorrectionsAndSkipsCodesAndAddresses() = withKeyboard { _, _ ->
+        val words = listOf("teh", "recieve", "definately", "a.name@example.com", "https://example.com", "ABC123", "123456", "user_name")
+        val latch = CountDownLatch(words.size)
+        val results = ConcurrentHashMap<Int, SuggestionsInfo>()
+        lateinit var session: SpellCheckerSession
+        instrumentation.runOnMainSync {
+            val manager = instrumentation.targetContext.getSystemService(TextServicesManager::class.java)
+            session = manager.newSpellCheckerSession(null, Locale.US, object : SpellCheckerSession.SpellCheckerSessionListener {
+                override fun onGetSuggestions(suggestions: Array<out SuggestionsInfo>) {
+                    for (info in suggestions) { results[info.sequence] = info; latch.countDown() }
+                }
+                override fun onGetSentenceSuggestions(suggestions: Array<out android.view.textservice.SentenceSuggestionsInfo>) {}
+            }, false) ?: throw AssertionError("Select Still's spellchecker before this test")
+            session.getSuggestions(words.mapIndexed { index, word -> TextInfo(word, 1, index) }.toTypedArray(), 3, false)
+        }
+        try {
+            assertTrue("Spellchecker must answer every word", latch.await(20, TimeUnit.SECONDS))
+            for ((index, expected) in listOf("the", "receive", "definitely").withIndex()) {
+                val info = results[index]!!
+                val suggestions = (0 until info.suggestionsCount).map { info.getSuggestionAt(it).lowercase() }
+                assertTrue("Spellchecker ${words[index]} -> $suggestions; expected $expected", expected in suggestions)
+            }
+            for (index in 3 until words.size) {
+                assertEquals("${words[index]} must not be flagged as a typo", 0,
+                    results[index]!!.suggestionsAttributes and SuggestionsInfo.RESULT_ATTR_LOOKS_LIKE_TYPO)
+            }
+        } finally { instrumentation.runOnMainSync { session.close() } }
     }
 }
