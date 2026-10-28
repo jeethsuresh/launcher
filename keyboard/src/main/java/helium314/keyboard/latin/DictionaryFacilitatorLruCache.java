@@ -36,13 +36,14 @@ public class DictionaryFacilitatorLruCache {
                 true /* isNeededForSpellChecking */);
     }
 
-    private static void waitForLoadingMainDictionary(
+    static void waitForLoadingMainDictionary(
             final DictionaryFacilitator dictionaryFacilitator) {
         for (int i = 0; i < MAX_RETRY_COUNT_FOR_WAITING_FOR_LOADING_DICT; i++) {
             try {
-                dictionaryFacilitator.waitForLoadingMainDictionaries(
-                        WAIT_FOR_LOADING_MAIN_DICT_IN_MILLISECONDS, TimeUnit.MILLISECONDS);
-                return;
+                if (dictionaryFacilitator.waitForLoadingMainDictionaries(
+                        WAIT_FOR_LOADING_MAIN_DICT_IN_MILLISECONDS, TimeUnit.MILLISECONDS)) {
+                    return;
+                }
             } catch (final InterruptedException e) {
                 Log.i(TAG, "Interrupted during waiting for loading main dictionary.", e);
                 if (i < MAX_RETRY_COUNT_FOR_WAITING_FOR_LOADING_DICT - 1) {

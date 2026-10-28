@@ -59,10 +59,11 @@ jobs:
           adb shell settings put secure spell_checker_enabled 1
           adb shell settings put secure selected_spell_checker app.still.launcher/helium314.keyboard.latin.spellcheck.AndroidSpellCheckerService
       - name: Real dictionary and code suggestion regressions
-        run: ./gradlew --no-daemon connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.still.launcher.KeyboardSuggestionTest
+        run: ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.still.launcher.KeyboardSuggestionTest
       - name: Emulator diagnostics
         if: always()
         run: |
           if [ -f "$RUNNER_TEMP/emulator.log" ]; then tail -150 "$RUNNER_TEMP/emulator.log"; fi
           adb devices -l
           if adb get-state >/dev/null 2>&1; then adb logcat -d -t 200; fi
+          if adb get-state >/dev/null 2>&1; then adb logcat -d -s StillSuggestionTest:V AndroidWordLevelSpellCheckerSession:V DictionaryFacilitatorImpl:V AndroidRuntime:E; fi

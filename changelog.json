@@ -6,6 +6,7 @@
     "Show native password-manager suggestions, including Proton Pass, above the keyboard on Android 11 and later.",
     "Suggest recently copied verification codes and optional codes from newly received SMS texts for 30 seconds.",
     "Keep short verification codes and sensitive clipboard content out of keyboard clipboard history.",
-    "Avoid false spelling warnings for text that cannot be spellchecked."
+    "Avoid false spelling warnings for text that cannot be spellchecked.",
+    "Wait for dictionaries to finish loading on a slow first spellcheck request."
   ]
 }

@@ -156,6 +156,11 @@ class KeyboardSuggestionTest {
         lateinit var session: SpellCheckerSession
         instrumentation.runOnMainSync {
             val manager = instrumentation.targetContext.getSystemService(TextServicesManager::class.java)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                assertEquals("The test must use Still's platform spellchecker",
+                    "app.still.launcher/helium314.keyboard.latin.spellcheck.AndroidSpellCheckerService",
+                    manager.currentSpellCheckerInfo?.id)
+            }
             session = manager.newSpellCheckerSession(null, Locale.US, object : SpellCheckerSession.SpellCheckerSessionListener {
                 override fun onGetSuggestions(suggestions: Array<out SuggestionsInfo>) {
                     for (info in suggestions) { results[info.sequence] = info; latch.countDown() }
@@ -166,6 +171,10 @@ class KeyboardSuggestionTest {
         }
         try {
             assertTrue("Spellchecker must answer every word", latch.await(20, TimeUnit.SECONDS))
+            for ((index, word) in words.withIndex()) {
+                val info = results[index]!!
+                android.util.Log.i("StillSuggestionTest", "platform $word -> ${(0 until info.suggestionsCount).map { info.getSuggestionAt(it) }}; flags=${info.suggestionsAttributes}")
+            }
             for ((index, expected) in listOf("the", "receive", "definitely").withIndex()) {
                 val info = results[index]!!
                 val suggestions = (0 until info.suggestionsCount).map { info.getSuggestionAt(it).lowercase() }

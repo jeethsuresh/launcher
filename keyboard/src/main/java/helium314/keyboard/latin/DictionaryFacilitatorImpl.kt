@@ -249,9 +249,10 @@ class DictionaryFacilitatorImpl : DictionaryFacilitator {
                 // Prepare the source-available gesture lexicon off the UI thread.
                 dictGroupsWithNewMainDict.forEach { (_, main) -> (main as? DictionaryCollection)?.gestureWords }
                 listener?.onUpdateMainDictionaryAvailability(hasAtLeastOneInitializedMainDictionary())
-                latchForWaitingLoadingMainDictionary.countDown()
             } catch (e: Throwable) {
                 Log.e(TAG, "could not initialize main dictionaries for $locales", e)
+            } finally {
+                latchForWaitingLoadingMainDictionary.countDown()
             }
         }
     }
@@ -277,9 +278,8 @@ class DictionaryFacilitatorImpl : DictionaryFacilitator {
         dictionaryGroups.any { it.getDict(Dictionary.TYPE_MAIN)?.isInitialized != true }
 
     @Throws(InterruptedException::class)
-    override fun waitForLoadingMainDictionaries(timeout: Long, unit: TimeUnit) {
+    override fun waitForLoadingMainDictionaries(timeout: Long, unit: TimeUnit): Boolean =
         mLatchForWaitingLoadingMainDictionaries.await(timeout, unit)
-    }
 
     // -------------- actual dictionary stuff like getting suggestions ------------
 
