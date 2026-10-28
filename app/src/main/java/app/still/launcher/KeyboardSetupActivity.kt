@@ -1,6 +1,9 @@
 package app.still.launcher
 
 import android.app.Activity
+import android.Manifest
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
@@ -14,9 +17,12 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import helium314.keyboard.latin.utils.prefs
 
 /** System consent is always left to Android's keyboard settings and picker. */
 class KeyboardSetupActivity : Activity() {
+    private lateinit var smsButton: Button
+    private lateinit var clipboardCodeButton: Button
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = Color.rgb(24, 28, 27)
@@ -57,8 +63,39 @@ class KeyboardSetupActivity : Activity() {
         button("Toolbar setup") {
             startActivity(Intent(this, helium314.keyboard.settings.SettingsActivity::class.java).putExtra("still_settings_destination", "toolbar"))
         }
+        text("Passwords and verification codes", 20f, true)
+        text("Choose Proton Pass as your Android password manager and enable its inline autofill. Tap its password suggestions to fill or unlock your vault. Proton Pass can copy 2FA codes after login; hold a recent code in the keyboard to insert it. Code suggestions disappear after 30 seconds.", 15f)
+        button("Choose Proton Pass for autofill") {
+            val intent = Intent(Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE, Uri.parse("package:proton.android.pass"))
+            try { startActivity(intent) }
+            catch (_: android.content.ActivityNotFoundException) { startActivity(Intent(Settings.ACTION_SETTINGS)) }
+        }
+        clipboardCodeButton = Button(this).apply {
+            isAllCaps = false
+            setOnClickListener {
+                val key = helium314.keyboard.latin.still.OneTimeCodes.CLIPBOARD_ENABLED_PREF
+                prefs().edit().putBoolean(key, !prefs().getBoolean(key, true)).apply()
+                updateCodeButtons()
+            }
+        }
+        content.addView(clipboardCodeButton, LinearLayout.LayoutParams(-1, dp(54)))
+        text("Clipboard code suggestions are separate from clipboard history and general paste suggestions. You can turn them off here.", 14f)
+        text("Text-message codes are optional. Enable SMS access to suggest 4–8 character codes from newly received texts. Still keeps only the codes in memory for 30 seconds; it does not read your inbox or save messages. Some Android installers restrict SMS permission.", 14f)
+        smsButton = Button(this).apply {
+            isAllCaps = false
+            setOnClickListener {
+                if (helium314.keyboard.latin.still.RecentSmsCodes.enabled(this@KeyboardSetupActivity)) {
+                    setSmsEnabled(false)
+                } else if (checkSelfPermission(Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED) {
+                    setSmsEnabled(true)
+                } else {
+                    requestPermissions(arrayOf(Manifest.permission.RECEIVE_SMS), SMS_PERMISSION_REQUEST)
+                }
+            }
+        }
+        content.addView(smsButton, LinearLayout.LayoutParams(-1, dp(54)))
         text("Hold to act", 20f, true)
-        text("Hold a suggested word to use it. Hold a toolbar button to run its action. Hold the left arrow to set up the toolbar. A quick tap on the toolbar does nothing. Letter, symbol, and emoji keys use normal taps.", 15f)
+        text("Hold a suggested word to use it. Hold a toolbar button to run its action. Hold the left arrow to set up the toolbar. A quick tap on the toolbar does nothing. Password-manager suggestions use the manager’s normal tap and unlock controls. Letter, symbol, and emoji keys use normal taps.", 15f)
         text("Tap the smiley, then hold the magnifying glass to search emoji. Hold category icons to switch emoji groups. Search words stay inside the keyboard; only your chosen emoji is inserted. English US/UK dictionaries are bundled. Typing and search work offline.", 14f)
         button("Source & licenses") {
             val notices = TextView(this).apply {
@@ -72,6 +109,36 @@ class KeyboardSetupActivity : Activity() {
         setContentView(ScrollView(this).apply { addView(content); isFillViewport = true; fitsSystemWindows = true })
         window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
     }
+
+    override fun onResume() {
+        super.onResume()
+        updateCodeButtons()
+    }
+
+    private fun updateCodeButtons() {
+        smsButton.text = if (helium314.keyboard.latin.still.RecentSmsCodes.enabled(this)) "Turn off text-message code suggestions" else "Enable text-message code suggestions"
+        clipboardCodeButton.text = if (prefs().getBoolean(helium314.keyboard.latin.still.OneTimeCodes.CLIPBOARD_ENABLED_PREF, true))
+            "Turn off clipboard code suggestions" else "Enable clipboard code suggestions"
+    }
+
+    private fun setSmsEnabled(enabled: Boolean) {
+        prefs().edit()
+            .putBoolean(helium314.keyboard.latin.still.OneTimeCodes.SMS_ENABLED_PREF, enabled).apply()
+        if (!enabled) helium314.keyboard.latin.still.RecentSmsCodes.store.clear()
+        helium314.keyboard.latin.still.RecentSmsCodes.changed()
+        updateCodeButtons()
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == SMS_PERMISSION_REQUEST) {
+            val granted = grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED
+            setSmsEnabled(granted)
+            if (!granted) android.widget.Toast.makeText(this, "SMS access was not granted. Password-manager and clipboard code suggestions still work.", android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+
+    companion object { private const val SMS_PERMISSION_REQUEST = 40 }
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
 }

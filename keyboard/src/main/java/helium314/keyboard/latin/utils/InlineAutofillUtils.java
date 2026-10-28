@@ -86,8 +86,9 @@ public class InlineAutofillUtils {
         Bundle stylesBundle = stylesBuilder.build();
 
         final int height = context.getResources().getDimensionPixelSize(R.dimen.config_suggestions_strip_height);
-        final Size min = new Size(100, height);
-        final Size max = new Size(740, height);
+        final int width = context.getResources().getDisplayMetrics().widthPixels;
+        final Size min = new Size(Math.min(width, (int) (48 * context.getResources().getDisplayMetrics().density)), height);
+        final Size max = new Size(width, height);
 
         // Three InlinePresentationSpec are required for some password managers
         final ArrayList<InlinePresentationSpec> presentationSpecs = new ArrayList<>();
@@ -101,23 +102,21 @@ public class InlineAutofillUtils {
     }
 
     public static InlineContentClipView createView(final List<InlineSuggestion> inlineSuggestions,
-                                                   final Context context) {
+                                                   final Context context,
+                                                   final java.util.function.BooleanSupplier isCurrent) {
         LinearLayout container = new LinearLayout(context);
         for (InlineSuggestion inlineSuggestion : inlineSuggestions) {
+            // Inflation is asynchronous. Slots preserve the provider's ranking.
+            FrameLayout slot = new FrameLayout(context);
+            container.addView(slot);
             inlineSuggestion.inflate(context, new Size(ViewGroup.LayoutParams.WRAP_CONTENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT), context.getMainExecutor(), (view) -> {
-                if (view != null)
-                    container.addView(view);
+                if (view != null && isCurrent.getAsBoolean())
+                    slot.addView(view);
             });
         }
-
-        HorizontalScrollView inlineSuggestionView = new HorizontalScrollView(context);
-        inlineSuggestionView.setHorizontalScrollBarEnabled(false);
-        inlineSuggestionView.setOverScrollMode(View.OVER_SCROLL_NEVER);
-        inlineSuggestionView.addView(container);
-
         InlineContentClipView scrollableSuggestionsClip = new InlineContentClipView(context);
-        scrollableSuggestionsClip.addView(inlineSuggestionView);
+        scrollableSuggestionsClip.addView(container);
         return scrollableSuggestionsClip;
     }
 

@@ -180,6 +180,8 @@ public class LatinIME extends InputMethodService implements
     private GestureConsumer mGestureConsumer = GestureConsumer.NULL_GESTURE_CONSUMER;
 
     private final ClipboardHistoryManager mClipboardHistoryManager = new ClipboardHistoryManager(this);
+    private final helium314.keyboard.latin.still.AuthenticationSuggestions mAuthenticationSuggestions =
+            new helium314.keyboard.latin.still.AuthenticationSuggestions(this);
 
     public static final class UIHandler extends LeakGuardHandlerWrapper<LatinIME> {
         private static final int MSG_UPDATE_SHIFT_STATE = 0;
@@ -638,6 +640,7 @@ public class LatinIME extends InputMethodService implements
         super.onCreate();
 
         mClipboardHistoryManager.onCreate();
+        mAuthenticationSuggestions.onCreate();
         mHandler.onCreate();
         loadSettings();
 
@@ -775,6 +778,7 @@ public class LatinIME extends InputMethodService implements
 
     @Override
     public void onDestroy() {
+        mAuthenticationSuggestions.onDestroy();
         mClipboardHistoryManager.onDestroy();
         mDictionaryFacilitator.closeDictionaries();
         mSettings.onDestroy();
@@ -870,6 +874,7 @@ public class LatinIME extends InputMethodService implements
         mStillEmojiSearch = view.findViewById(R.id.still_emoji_search);
         if (mStillEmojiSearch != null) mStillEmojiSearch.attach(this);
         mInputView = view;
+        mAuthenticationSuggestions.attach(view);
         mInsetsUpdater = ViewOutlineProviderUtilsKt.setInsetsOutlineProvider(view);
         updateSoftInputWindowLayoutParameters();
         mSuggestionStripView = mSettings.getCurrent().mToolbarMode == ToolbarMode.HIDDEN?
@@ -900,6 +905,7 @@ public class LatinIME extends InputMethodService implements
 
     @Override
     public void onStartInput(final EditorInfo editorInfo, final boolean restarting) {
+        mAuthenticationSuggestions.newEditor();
         if (mStillEmojiSearch != null) mStillEmojiSearch.stop();
         mHandler.onStartInput(editorInfo, restarting);
     }
@@ -912,6 +918,7 @@ public class LatinIME extends InputMethodService implements
 
     @Override
     public void onFinishInputView(final boolean finishingInput) {
+        mAuthenticationSuggestions.finish();
         if (mStillEmojiSearch != null) mStillEmojiSearch.stop();
         StatsUtils.onFinishInputView();
         mHandler.onFinishInputView(finishingInput);
@@ -1121,6 +1128,7 @@ public class LatinIME extends InputMethodService implements
                 currentSettingsValues.mGestureFloatingPreviewTextEnabled);
 
         if (TRACE) Debug.startMethodTracing("/data/trace/latinime");
+        mAuthenticationSuggestions.start();
     }
 
     @Override
@@ -1134,6 +1142,7 @@ public class LatinIME extends InputMethodService implements
 
     @Override
     public void onWindowHidden() {
+        mAuthenticationSuggestions.finish();
         super.onWindowHidden();
         Log.i(TAG, "onWindowHidden");
         final MainKeyboardView mainKeyboardView = mKeyboardSwitcher.getMainKeyboardView();
@@ -1144,6 +1153,7 @@ public class LatinIME extends InputMethodService implements
     }
 
     void onFinishInputInternal() {
+        mAuthenticationSuggestions.finish();
         super.onFinishInput();
         Log.i(TAG, "onFinishInput");
 
@@ -1316,7 +1326,8 @@ public class LatinIME extends InputMethodService implements
         }
         final int stripHeight = mKeyboardSwitcher.isShowingStripContainer() ? mKeyboardSwitcher.getStripContainer().getHeight() : 0;
         final int searchHeight = isStillEmojiSearching() ? mStillEmojiSearch.getHeight() : 0;
-        final int visibleTopY = inputHeight - visibleKeyboardView.getHeight() - stripHeight - searchHeight;
+        final int visibleTopY = inputHeight - visibleKeyboardView.getHeight() - stripHeight - searchHeight
+                - mAuthenticationSuggestions.visibleHeight();
 
         if (hasSuggestionStripView()) {
             mSuggestionStripView.setMoreSuggestionsHeight(visibleTopY);
@@ -1388,7 +1399,8 @@ public class LatinIME extends InputMethodService implements
             final boolean noFullscreen = (ei.imeOptions & EditorInfo.IME_FLAG_NO_FULLSCREEN) != 0;
             if (noExtractUi || noFullscreen) return false;
             if (mKeyboardSwitcher.getVisibleKeyboardView() == null || mSuggestionStripView == null) return false;
-            final int usedHeight = mKeyboardSwitcher.getVisibleKeyboardView().getHeight() + mSuggestionStripView.getHeight();
+            final int usedHeight = mKeyboardSwitcher.getVisibleKeyboardView().getHeight()
+                    + mSuggestionStripView.getHeight() + mAuthenticationSuggestions.visibleHeight();
             final int availableHeight = getResources().getDisplayMetrics().heightPixels;
             return usedHeight > availableHeight * 0.6; // if we have less than 40% available, use fullscreen mode
         }
@@ -1404,15 +1416,24 @@ public class LatinIME extends InputMethodService implements
     @Override
     @RequiresApi(api = Build.VERSION_CODES.R)
     public InlineSuggestionsRequest onCreateInlineSuggestionsRequest(@NonNull Bundle uiExtras) {
-        // Remote autofill chips control their own tap handlers. Keep the toolbar
-        // consistently hold-only; Android's regular autofill UI remains available.
-        return null;
+        return InlineAutofillUtils.createInlineSuggestionRequest(this);
     }
 
     @Override
     @RequiresApi(api = Build.VERSION_CODES.R)
     public boolean onInlineSuggestionsResponse(InlineSuggestionsResponse response) {
-        return false;
+        return mAuthenticationSuggestions.onInlineResponse(response);
+    }
+
+    public void refreshAuthenticationSuggestions() {
+        mAuthenticationSuggestions.refresh();
+    }
+
+    public void commitAuthenticationCode(final String code) {
+        final Event event = Event.createSoftwareTextEvent(code, KeyCode.MULTIPLE_CODE_POINTS);
+        final InputTransaction transaction = mInputLogic.onAuthenticationCodeInput(
+                mSettings.getCurrent(), event, mKeyboardSwitcher.getKeyboardShiftMode(), mHandler);
+        updateStateAfterInputTransaction(transaction);
     }
 
     private void updateSoftInputWindowLayoutParameters() {

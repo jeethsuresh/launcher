@@ -62,6 +62,7 @@ class StillEmojiSearchView(context: Context, attrs: AttributeSet?) : LinearLayou
         switcher.resetKeyboardStateToAlphabet(ime?.currentAutoCapsState ?: 0, ime?.currentRecapitalizeState ?: 0)
         previousStripVisibility = strip.visibility
         active = true
+        ime?.refreshAuthenticationSuggestions()
         query = ""
         val colors = Settings.getValues().mColors
         setBackgroundColor(colors.get(ColorType.STRIP_BACKGROUND))
@@ -89,6 +90,7 @@ class StillEmojiSearchView(context: Context, attrs: AttributeSet?) : LinearLayou
     fun stop() {
         if (!active) return
         active = false
+        ime?.refreshAuthenticationSuggestions()
         query = ""
         visibility = GONE
         if (switcher.keyboard != null)

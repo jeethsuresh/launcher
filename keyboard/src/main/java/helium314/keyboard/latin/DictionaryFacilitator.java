@@ -113,8 +113,8 @@ public interface DictionaryFacilitator {
     /** main dictionaries are loaded asynchronously after resetDictionaries */
     boolean hasAtLeastOneUninitializedMainDictionary();
 
-    /** main dictionaries are loaded asynchronously after resetDictionaries */
-    void waitForLoadingMainDictionaries(final long timeout, final TimeUnit unit)
+    /** Returns whether asynchronous loading finished, including a missing/failed dictionary. */
+    boolean waitForLoadingMainDictionaries(final long timeout, final TimeUnit unit)
             throws InterruptedException;
 
     /** adds the word to user history dictionary, calls adjustConfindences, and might add it to personal dictionary if the setting is enabled */

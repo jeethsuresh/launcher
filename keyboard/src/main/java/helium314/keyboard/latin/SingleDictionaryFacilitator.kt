@@ -86,8 +86,7 @@ class SingleDictionaryFacilitator(private val dict: Dictionary) : DictionaryFaci
 
     override fun hasAtLeastOneUninitializedMainDictionary(): Boolean = !dict.isInitialized
 
-    override fun waitForLoadingMainDictionaries(timeout: Long, unit: TimeUnit) {
-    }
+    override fun waitForLoadingMainDictionaries(timeout: Long, unit: TimeUnit): Boolean = true
 
     override fun addToUserHistory(
         suggestion: String, wasAutoCapitalized: Boolean, ngramContext: NgramContext,
