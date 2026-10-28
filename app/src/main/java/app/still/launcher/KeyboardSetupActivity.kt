@@ -22,6 +22,7 @@ import helium314.keyboard.latin.utils.prefs
 /** System consent is always left to Android's keyboard settings and picker. */
 class KeyboardSetupActivity : Activity() {
     private lateinit var smsButton: Button
+    private lateinit var clipboardCodeButton: Button
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = Color.rgb(24, 28, 27)
@@ -69,6 +70,16 @@ class KeyboardSetupActivity : Activity() {
             try { startActivity(intent) }
             catch (_: android.content.ActivityNotFoundException) { startActivity(Intent(Settings.ACTION_SETTINGS)) }
         }
+        clipboardCodeButton = Button(this).apply {
+            isAllCaps = false
+            setOnClickListener {
+                val key = helium314.keyboard.latin.still.OneTimeCodes.CLIPBOARD_ENABLED_PREF
+                prefs().edit().putBoolean(key, !prefs().getBoolean(key, true)).apply()
+                updateCodeButtons()
+            }
+        }
+        content.addView(clipboardCodeButton, LinearLayout.LayoutParams(-1, dp(54)))
+        text("Clipboard code suggestions are separate from clipboard history and general paste suggestions. You can turn them off here.", 14f)
         text("Text-message codes are optional. Enable SMS access to suggest 4–8 character codes from newly received texts. Still keeps only the codes in memory for 30 seconds; it does not read your inbox or save messages. Some Android installers restrict SMS permission.", 14f)
         smsButton = Button(this).apply {
             isAllCaps = false
@@ -101,11 +112,13 @@ class KeyboardSetupActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        updateSmsButton()
+        updateCodeButtons()
     }
 
-    private fun updateSmsButton() {
+    private fun updateCodeButtons() {
         smsButton.text = if (helium314.keyboard.latin.still.RecentSmsCodes.enabled(this)) "Turn off text-message code suggestions" else "Enable text-message code suggestions"
+        clipboardCodeButton.text = if (prefs().getBoolean(helium314.keyboard.latin.still.OneTimeCodes.CLIPBOARD_ENABLED_PREF, true))
+            "Turn off clipboard code suggestions" else "Enable clipboard code suggestions"
     }
 
     private fun setSmsEnabled(enabled: Boolean) {
@@ -113,7 +126,7 @@ class KeyboardSetupActivity : Activity() {
             .putBoolean(helium314.keyboard.latin.still.OneTimeCodes.SMS_ENABLED_PREF, enabled).apply()
         if (!enabled) helium314.keyboard.latin.still.RecentSmsCodes.store.clear()
         helium314.keyboard.latin.still.RecentSmsCodes.changed()
-        updateSmsButton()
+        updateCodeButtons()
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {

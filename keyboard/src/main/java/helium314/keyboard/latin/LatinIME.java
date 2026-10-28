@@ -913,7 +913,6 @@ public class LatinIME extends InputMethodService implements
     @Override
     public void onStartInputView(final EditorInfo editorInfo, final boolean restarting) {
         mHandler.onStartInputView(editorInfo, restarting);
-        mAuthenticationSuggestions.start();
         mStatsUtilsManager.onStartInputView();
     }
 
@@ -1129,6 +1128,7 @@ public class LatinIME extends InputMethodService implements
                 currentSettingsValues.mGestureFloatingPreviewTextEnabled);
 
         if (TRACE) Debug.startMethodTracing("/data/trace/latinime");
+        mAuthenticationSuggestions.start();
     }
 
     @Override

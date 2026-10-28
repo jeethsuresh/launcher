@@ -7,6 +7,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.SystemClock
+import android.os.Handler
+import android.os.Looper
 import android.provider.Telephony
 import helium314.keyboard.compat.isDeviceLocked
 import helium314.keyboard.latin.utils.prefs
@@ -14,9 +16,18 @@ import helium314.keyboard.latin.utils.prefs
 object RecentSmsCodes {
     val store = RecentCodeStore()
     private val listeners = mutableSetOf<() -> Unit>()
+    private val handler = Handler(Looper.getMainLooper())
+    private val expiry = Runnable { changed() }
     fun subscribe(listener: () -> Unit) { listeners.add(listener) }
     fun unsubscribe(listener: () -> Unit) { listeners.remove(listener) }
-    fun changed() { listeners.toList().forEach { it() } }
+    fun changed() {
+        handler.removeCallbacks(expiry)
+        val now = SystemClock.elapsedRealtime()
+        val entries = store.current(now)
+        if (entries.isNotEmpty()) handler.postDelayed(expiry,
+            entries.minOf { OneTimeCodes.LIFETIME_MS - (now - it.receivedAt) }.coerceAtLeast(1))
+        listeners.toList().forEach { it() }
+    }
     fun enabled(context: Context) = context.prefs().getBoolean(OneTimeCodes.SMS_ENABLED_PREF, false) &&
         context.checkSelfPermission(Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED
 }

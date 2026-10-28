@@ -47,8 +47,8 @@ Older Android versions keep the system popup autofill UI.
 Proton Pass supplies Android TOTP codes through its copy-2FA-to-clipboard setting
 after login. Still offers a literal 4–8 character numeric/alphanumeric clipboard
 code for at most 30 seconds after copying, even with clipboard history disabled.
-Clipboard suggestions must be enabled in keyboard settings. Hold a code to insert
-it without autocorrection or automatic spaces. Codes and sensitive clips are not
+This has a separate switch in Still Keyboard setup, enabled by default. Hold a
+code to insert it without autocorrection or automatic spaces. Codes and sensitive clips are not
 added to clipboard history. Still does not read vault secrets or generate TOTP.
 
 **Enable text-message code suggestions** in the same setup screen to opt into

@@ -5,8 +5,9 @@ package helium314.keyboard.latin.still
 object OneTimeCodes {
     const val LIFETIME_MS = 30_000L
     const val SMS_ENABLED_PREF = "still_sms_codes_enabled"
+    const val CLIPBOARD_ENABLED_PREF = "still_clipboard_codes_enabled"
     private val token = Regex("(?<![\\p{L}\\p{N}_/-])[A-Za-z0-9]{4,8}(?![\\p{L}\\p{N}_/-])")
-    private val context = Regex("\\b(code|otp|pin|verification|verify|security|login|authentication|one[ -]time)\\b", RegexOption.IGNORE_CASE)
+    private val context = Regex("\\b(codes?|otp|pin|verification|verify|security|login|log[ -]in|sign[ -]in|authentication|confirmation|passcode|2fa|one[ -]time)\\b", RegexOption.IGNORE_CASE)
     private val wholeCode = Regex("[A-Za-z0-9]{4,8}")
 
     fun fromClipboard(text: String): String? = text.takeIf { it.length <= 16 }?.trim()?.takeIf {

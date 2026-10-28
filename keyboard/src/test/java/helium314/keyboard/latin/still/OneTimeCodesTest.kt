@@ -9,6 +9,7 @@ class OneTimeCodesTest {
         assertEquals(listOf("a2B4c6D8"), OneTimeCodes.fromMessage("Use a2B4c6D8 to verify your login"))
         assertEquals(listOf("ABCD"), OneTimeCodes.fromMessage("Your one-time code: ABCD"))
         assertEquals(listOf("A1b2"), OneTimeCodes.fromMessage("A1b2"))
+        assertEquals(listOf("543210"), OneTimeCodes.fromMessage("Use 543210 to sign in."))
     }
 
     @Test fun rejectsUnrelatedWordsLongTokensDatesAndLinks() {

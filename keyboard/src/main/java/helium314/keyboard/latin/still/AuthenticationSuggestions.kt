@@ -2,6 +2,7 @@
 package helium314.keyboard.latin.still
 
 import android.content.ClipboardManager
+import android.content.SharedPreferences
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -19,6 +20,7 @@ import helium314.keyboard.latin.R
 import helium314.keyboard.latin.common.ColorType
 import helium314.keyboard.latin.utils.InlineAutofillUtils
 import helium314.keyboard.compat.isDeviceLocked
+import helium314.keyboard.latin.utils.prefs
 
 /** A separate row keeps credentials independent of prediction/clipboard toolbar updates. */
 class AuthenticationSuggestions(private val ime: LatinIME) : ClipboardManager.OnPrimaryClipChangedListener {
@@ -30,17 +32,22 @@ class AuthenticationSuggestions(private val ime: LatinIME) : ClipboardManager.On
     private val consumed = mutableSetOf<String>()
     private val changed: () -> Unit = { refresh() }
     private val expiry = Runnable { refresh() }
+    private val preferenceChanged = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == OneTimeCodes.CLIPBOARD_ENABLED_PREF) refresh()
+    }
     private val clipboard get() = ime.getSystemService(ClipboardManager::class.java)
 
     fun onCreate() {
         clipboard?.addPrimaryClipChangedListener(this)
         RecentSmsCodes.subscribe(changed)
+        ime.prefs().registerOnSharedPreferenceChangeListener(preferenceChanged)
     }
 
     fun onDestroy() {
         finish()
         clipboard?.removePrimaryClipChangedListener(this)
         RecentSmsCodes.unsubscribe(changed)
+        ime.prefs().unregisterOnSharedPreferenceChangeListener(preferenceChanged)
     }
 
     fun attach(view: View) {
@@ -76,7 +83,7 @@ class AuthenticationSuggestions(private val ime: LatinIME) : ClipboardManager.On
     override fun onPrimaryClipChanged() { refresh() }
 
     private fun clipboardCode(): Pair<String, Long>? {
-        if (helium314.keyboard.latin.settings.Settings.getValues()?.mSuggestClipboardContent != true) return null
+        if (!ime.prefs().getBoolean(OneTimeCodes.CLIPBOARD_ENABLED_PREF, true)) return null
         val clip = clipboard?.primaryClip ?: return null
         if (clip.itemCount == 0 || !clip.description.hasMimeType("text/*")) return null
         val timestamp = clip.description.timestamp

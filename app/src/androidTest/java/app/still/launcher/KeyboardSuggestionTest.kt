@@ -47,10 +47,19 @@ class KeyboardSuggestionTest {
             editor.requestFocus()
             activity.getSystemService(InputMethodManager::class.java).showSoftInput(editor, InputMethodManager.SHOW_IMPLICIT)
         }
-        SystemClock.sleep(2000)
         val field = KeyboardSwitcher::class.java.getDeclaredField("mLatinIME").apply { isAccessible = true }
-        val ime = field.get(KeyboardSwitcher.getInstance()) as LatinIME
-        try { return test(editor, ime) }
+        var ime: LatinIME? = null
+        val deadline = SystemClock.elapsedRealtime() + 15_000
+        do {
+            instrumentation.runOnMainSync {
+                val candidate = field.get(KeyboardSwitcher.getInstance()) as? LatinIME
+                if (candidate?.isInputViewShown == true && candidate.currentInputEditorInfo?.packageName == activity.packageName)
+                    ime = candidate
+                else activity.getSystemService(InputMethodManager::class.java).showSoftInput(editor, InputMethodManager.SHOW_IMPLICIT)
+            }
+            if (ime == null) SystemClock.sleep(100)
+        } while (ime == null && SystemClock.elapsedRealtime() < deadline)
+        try { return test(editor, ime ?: throw AssertionError("Still Keyboard must bind to the test editor")) }
         finally { instrumentation.runOnMainSync { activity.finish() } }
     }
 
@@ -75,6 +84,15 @@ class KeyboardSuggestionTest {
             } finally { dictionary.close() }
         }
         assertTrue(failures.joinToString("\n"), failures.isEmpty())
+    }
+
+    @Test fun requestsNativeInlineAutofill() = withKeyboard { _, ime ->
+        instrumentation.runOnMainSync {
+            val request = ime.onCreateInlineSuggestionsRequest(android.os.Bundle.EMPTY)
+                ?: throw AssertionError("Android must receive an inline autofill request")
+            assertEquals(6, request.maxSuggestionCount)
+            assertTrue(request.inlinePresentationSpecs.isNotEmpty())
+        }
     }
 
     @Test fun codeRowInsertsLeadingZeroesWithoutSpacesAndExpires() = withKeyboard { editor, ime ->
@@ -112,7 +130,7 @@ class KeyboardSuggestionTest {
             SystemClock.sleep(300)
             for (char in typo) {
                 instrumentation.runOnMainSync {
-                    val key = KeyboardSwitcher.getInstance().keyboard!!.sortedKeys.first { it.code == char.code }
+                    val key = KeyboardSwitcher.getInstance().keyboard!!.sortedKeys.first { Character.toLowerCase(it.code) == char.code }
                     ime.onCodeInput(char.code, key.x + key.width / 2, key.y + key.height / 2, false)
                 }
                 SystemClock.sleep(60)
@@ -120,7 +138,8 @@ class KeyboardSuggestionTest {
             SystemClock.sleep(700)
             instrumentation.runOnMainSync {
                 val strip = KeyboardSwitcher.getInstance().mainKeyboardView.rootView.findViewById<ViewGroup>(helium314.keyboard.latin.R.id.suggestion_strip_view)
-                fun words(view: View): List<String> = if (view is TextView) listOf(view.text.toString().lowercase())
+                fun words(view: View): List<String> = if (!view.isShown) emptyList()
+                    else if (view is TextView) listOf(view.text.toString().lowercase())
                     else if (view is ViewGroup) (0 until view.childCount).flatMap { words(view.getChildAt(it)) } else emptyList()
                 val shown = words(strip)
                 android.util.Log.i("StillSuggestionTest", "visible $typo -> $shown")
