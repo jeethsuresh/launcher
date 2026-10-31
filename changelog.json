@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "version": "0.6.0",
-  "versionCode": 9,
+  "versionCode": 10,
   "changes": [
     "Open folders in a popover above the dock while keeping the current home screen visible, using the same number of columns as the home grid.",
     "Start folders at two icon rows and grow toward the folder's home-screen position as needed. Dock folders stay two rows tall, and overflow apps scroll inside the popover.",
