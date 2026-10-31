@@ -23,4 +23,6 @@ The second command requires an isolated API 35 emulator. The test APK supplies i
 
 `BadgeTargetsTest` covers reported/fallback counts, replacement/removal snapshots, profile isolation, folder aggregation without duplicate targets, exclusions, invalid counts, integer overflow, empty snapshots, visual capping and accessible labels without Android dependencies.
 
+The emulator saves screenshots in `/sdcard/Pictures/still-launcher-badges` so they survive test-package cleanup. CI requires all three PNG previews before accepting the run and uploads them with the test report.
+
 Android contracts: [notification badges](https://developer.android.com/develop/ui/views/notifications/badges), [notification listener lifecycle](https://developer.android.com/reference/android/service/notification/NotificationListenerService), and [ranking badge eligibility](https://developer.android.com/reference/android/service/notification/NotificationListenerService.Ranking).

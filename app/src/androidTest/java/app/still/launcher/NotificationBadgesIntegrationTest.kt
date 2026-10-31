@@ -166,10 +166,13 @@ class NotificationBadgesIntegrationTest {
     private fun screenshot(name: String) {
         instrumentation.waitForIdleSync()
         SystemClock.sleep(100) // Let the invalidated count reach the screen before capturing its pixels.
-        val bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
-        val directory = java.io.File(context.getExternalFilesDir(null), "badge-screenshots").apply { mkdirs() }
-        java.io.File(directory, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
-        bitmap.recycle()
+        // Use the emulator shell's public directory so Gradle's test-package
+        // cleanup cannot remove the images before CI collects them.
+        shell("mkdir -p /sdcard/Pictures/still-launcher-badges")
+        val path = "/sdcard/Pictures/still-launcher-badges/$name.png"
+        shell("screencap -p $path")
+        val bytes = shell("wc -c $path").trim().split(Regex("\\s+"), limit = 2).firstOrNull()?.toLongOrNull()
+        assertTrue("Missing rendered screenshot: $name", bytes != null && bytes > 0)
     }
     private fun cancel(id: Int) { broadcast("--es operation cancel --ei id $id") }
     private fun broadcast(extras: String) { shell("am broadcast --receiver-foreground -n ${fixture.packageName}/app.still.launcher.BadgeTestReceiver $extras") }
