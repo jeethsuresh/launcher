@@ -66,6 +66,29 @@ jobs:
         run: ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.still.launcher.KeyboardSuggestionTest
       - name: Notification badges across launcher surfaces and Android access changes
         run: ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.still.launcher.NotificationBadgesIntegrationTest
+      - name: Collect numbered badge screenshots
+        if: always()
+        run: |
+          mkdir -p badge-screenshots
+          for name in numbered-badges-7 numbered-badges-99-plus numbered-badges-small-icons; do
+            if adb shell test -f "/sdcard/Pictures/still-launcher-badges/$name.png"; then
+              adb pull "/sdcard/Pictures/still-launcher-badges/$name.png" "badge-screenshots/$name.png"
+            fi
+          done
+      - name: Require all rendered badge previews
+        run: |
+          test -s badge-screenshots/numbered-badges-7.png
+          test -s badge-screenshots/numbered-badges-99-plus.png
+          test -s badge-screenshots/numbered-badges-small-icons.png
+      - name: Save badge screenshots and test reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: numbered-badge-preview
+          path: |
+            badge-screenshots/
+            app/build/reports/androidTests/connected/
+          if-no-files-found: error
       - name: Folder popovers, scrolling, dismissal and drag extraction
         run: ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.still.launcher.FolderPopoverIntegrationTest
       - name: Collect folder screenshot

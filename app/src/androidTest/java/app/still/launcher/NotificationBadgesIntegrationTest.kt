@@ -47,30 +47,39 @@ class NotificationBadgesIntegrationTest {
             restart()
             awaitMain { badges().size == 4 && (badges().first().parent as View).contentDescription == app.label }
             val homeIcons = onMain { badges() }
-            post(1)
-            awaitMain { badges().all { it.hasBadge } }
+            post(1, number = 7)
+            awaitMain { badges().all { it.badgeCount == 7 } }
+            lateinit var seven: Bitmap
             instrumentation.runOnMainSync {
                 assertEquals(homeIcons, badges()) // Updates must not rebuild the workspace or disrupt dragging.
-                assertTrue(badges().all { (it.parent as View).contentDescription.endsWith(", notifications") })
+                assertTrue(badges().all { (it.parent as View).contentDescription.endsWith(", 7 notifications") })
                 val icon = badges().first()
                 assertTrue(icon.width > 0 && icon.height > 0)
-                val bitmap = Bitmap.createBitmap(icon.width, icon.height, Bitmap.Config.ARGB_8888)
-                icon.draw(Canvas(bitmap))
-                assertEquals(0xffd83c50.toInt(), bitmap.getPixel(icon.width - context.dp(6), context.dp(6)))
-                bitmap.recycle()
+                seven = badgeBitmap(icon)
+                assertTrue(badgePixels(seven).any { it == 0xffd83c50.toInt() })
+                assertTrue(badgePixels(seven).any { it == android.graphics.Color.WHITE })
+            }
+            screenshot("numbered-badges-7")
+            post(1, number = 2) // Replacing an existing notification replaces its count.
+            awaitMain { badges().all { it.badgeCount == 2 } }
+            instrumentation.runOnMainSync {
+                val two = badgeBitmap(badges().first())
+                assertFalse("Updating 7 to 2 must repaint the numeral", badgePixels(seven).contentEquals(badgePixels(two)))
+                two.recycle(); seven.recycle()
+                assertEquals(homeIcons, badges())
             }
             post(2)
+            awaitMain { badges().all { it.badgeCount == 3 } }
             cancel(1)
-            SystemClock.sleep(250)
-            awaitMain { badges().all { it.hasBadge } }
+            awaitMain { badges().all { it.badgeCount == 1 } }
 
             LauncherTestUi.click(activity) { it.contentDescription?.startsWith("Notifications, folder,") == true }
             awaitMain {
                 val grid = LauncherTestUi.find(activity.window.decorView) { it is GridView } as GridView
                 (0 until grid.childCount).any { index ->
                     val tile = grid.getChildAt(index)
-                    tile.contentDescription == "Badge fixture, notifications" &&
-                        (LauncherTestUi.find(tile) { it is BadgedIcon } as BadgedIcon).hasBadge
+                    tile.contentDescription == "Badge fixture, 1 notification" &&
+                        (LauncherTestUi.find(tile) { it is BadgedIcon } as BadgedIcon).badgeCount == 1
                 }
             }
             LauncherTestUi.click(activity) { it.contentDescription == "Back to home" }
@@ -78,7 +87,7 @@ class NotificationBadgesIntegrationTest {
             instrumentation.runOnMainSync { (LauncherTestUi.find(activity.window.decorView) { it is EditText } as EditText).setText(app.label) }
             awaitMain {
                 val grid = LauncherTestUi.find(activity.window.decorView) { it is GridView } as GridView
-                grid.childCount == 1 && grid.getChildAt(0).contentDescription == "Badge fixture, notifications"
+                grid.childCount == 1 && grid.getChildAt(0).contentDescription == "Badge fixture, 1 notification"
             }
             val drawerIcon = onMain { badges().last() }
             cancel(2)
@@ -87,28 +96,43 @@ class NotificationBadgesIntegrationTest {
                 assertEquals(app.label, (LauncherTestUi.find(activity.window.decorView) { it is EditText } as EditText).text.toString())
                 assertTrue(drawerIcon.isAttachedToWindow)
             }
-            post(3, ongoing = true)
-            post(4, channel = "badge-test-off")
-            post(5, summary = true)
+            post(3, ongoing = true, number = 50)
+            post(4, channel = "badge-test-off", number = 50)
+            post(5, summary = true, number = 50)
             SystemClock.sleep(500)
             awaitMain { badges().none { it.hasBadge } }
-            post(6, group = true)
-            awaitMain { drawerIcon.hasBadge }
+            post(6, group = true, number = 4)
+            awaitMain { drawerIcon.badgeCount == 4 }
             cancel(6)
             awaitMain { !drawerIcon.hasBadge }
 
-            post(7)
-            awaitMain { drawerIcon.hasBadge }
+            post(7, number = 105)
+            awaitMain { drawerIcon.badgeCount == 105 }
+            instrumentation.runOnMainSync {
+                assertEquals("99+", badgeLabel(drawerIcon.badgeCount))
+                assertTrue((drawerIcon.parent as View).contentDescription.endsWith(", 105 notifications"))
+            }
+            screenshot("numbered-badges-99-plus")
             shell("settings put secure notification_badging 0")
             awaitMain { !drawerIcon.hasBadge }
             shell("settings put secure notification_badging 1")
-            awaitMain { drawerIcon.hasBadge }
+            awaitMain { drawerIcon.badgeCount == 105 }
             shell("cmd notification disallow_listener $component")
             awaitMain { !drawerIcon.hasBadge }
             shell("cmd notification allow_listener $component")
-            awaitMain { drawerIcon.hasBadge }
+            awaitMain { drawerIcon.badgeCount == 105 }
+            LauncherStore(context).save(items, listOf(app.key, folder.key), settings.copy(columns = 4, rows = 6, dockSlots = 7, iconSize = 36), listOf(folder))
             restart()
-            awaitMain { badges().size == 4 && badges().all { it.hasBadge } }
+            awaitMain { badges().size == 4 && badges().all { it.badgeCount == 105 } }
+            instrumentation.runOnMainSync {
+                badges().forEach { icon ->
+                    assertTrue("Small icons may shrink to fit seven dock slots", icon.width in context.dp(28)..context.dp(36))
+                    val bitmap = badgeBitmap(icon)
+                    assertTrue(badgePixels(bitmap).any { it == android.graphics.Color.WHITE })
+                    bitmap.recycle()
+                }
+            }
+            screenshot("numbered-badges-small-icons")
             broadcast("--es operation cleanup")
             awaitMain { badges().none { it.hasBadge } }
             assertEquals(items, LauncherStore(context).items)
@@ -127,8 +151,28 @@ class NotificationBadgesIntegrationTest {
         }
     }
 
-    private fun post(id: Int, channel: String = "badge-test", ongoing: Boolean = false, summary: Boolean = false, group: Boolean = false) {
-        broadcast("--ei id $id --es channel $channel --ez ongoing $ongoing --ez summary $summary --ez group $group")
+    private fun post(id: Int, channel: String = "badge-test", ongoing: Boolean = false, summary: Boolean = false, group: Boolean = false, number: Int = 0) {
+        broadcast("--ei id $id --es channel $channel --ez ongoing $ongoing --ez summary $summary --ez group $group --ei number $number")
+    }
+    private fun badgeBitmap(icon: BadgedIcon) = Bitmap.createBitmap(icon.width, icon.height, Bitmap.Config.ARGB_8888).also { icon.draw(Canvas(it)) }
+    private fun badgePixels(bitmap: Bitmap): IntArray {
+        // Restrict to the badge interior so icon artwork and the white border cannot satisfy glyph assertions.
+        val x = bitmap.width - context.dp(14)
+        val y = context.dp(5)
+        val width = context.dp(8)
+        val height = context.dp(10)
+        return IntArray(width * height).also { bitmap.getPixels(it, 0, width, x, y, width, height) }
+    }
+    private fun screenshot(name: String) {
+        instrumentation.waitForIdleSync()
+        SystemClock.sleep(100) // Let the invalidated count reach the screen before capturing its pixels.
+        // Use the emulator shell's public directory so Gradle's test-package
+        // cleanup cannot remove the images before CI collects them.
+        shell("mkdir -p /sdcard/Pictures/still-launcher-badges")
+        val path = "/sdcard/Pictures/still-launcher-badges/$name.png"
+        shell("screencap -p $path")
+        val bytes = shell("wc -c $path").trim().split(Regex("\\s+"), limit = 2).firstOrNull()?.toLongOrNull()
+        assertTrue("Missing rendered screenshot: $name", bytes != null && bytes > 0)
     }
     private fun cancel(id: Int) { broadcast("--es operation cancel --ei id $id") }
     private fun broadcast(extras: String) { shell("am broadcast --receiver-foreground -n ${fixture.packageName}/app.still.launcher.BadgeTestReceiver $extras") }

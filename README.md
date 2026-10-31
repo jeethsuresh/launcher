@@ -31,7 +31,7 @@ Open **Still Launcher → settings → Set as default** to choose it as your Hom
 ## What's included
 
 - Alphabetical app drawer, local app-name search, profile-badged icons, package change updates.
-- Live notification dots on home, dock, drawer, and folder icons, with optional Android notification access. Work and personal profiles stay separate.
+- Live numbered notification badges on home, dock, drawer, and folder icons, with optional Android notification access. Work and personal profiles stay separate.
 - Multiple home pages with page indicators, horizontal swipes, and automatic overflow pages.
 - Drag icons and widgets onto vacant cells; drag apps into the dock. Edge-hold during a drag to move between existing pages.
 - A configurable 3–7 slot dock. Shrinking the dock moves overflow apps onto the home grid.
@@ -47,7 +47,7 @@ Open **Still Launcher → settings → Set as default** to choose it as your Hom
 - Hold a drawer app and drag it straight onto home. Drop it on **Options** for Add to home, Pin to dock, App info, or Hide from All apps. TalkBack also exposes **App options**.
 - Open **Widgets** from All apps, then hold a widget and drag it to a home cell. Android permission/configuration screens retain that location. Tapping a widget still adds it automatically.
 - Open **Launcher settings → Hidden apps** to hide or restore apps. Checked apps are hidden; **Save** applies changes, **Cancel** discards edits, and **Show all** restores everything. Home and dock shortcuts stay available.
-- Open **Launcher settings → Notification badges → Open Android settings** and allow **Still Launcher notification badges**. Dots indicate active notifications, follow Android badge settings, and clear when notifications are dismissed or access is revoked. Ongoing notifications and group summaries do not create dots. Notification content is never stored or sent. See [notification badges](docs/NOTIFICATION_BADGES.md).
+- Open **Launcher settings → Notification badges → Open Android settings** and allow **Still Launcher notification badges**. Badges use app-provided notification counts, or one per eligible notification when no count is supplied, and show `99+` above 99. They follow Android badge settings and clear when notifications are dismissed or access is revoked. Ongoing notifications and group summaries are excluded. Notification content is never stored or sent. See [notification badges](docs/NOTIFICATION_BADGES.md).
 - Hold an app or widget at a screen edge to turn pages. At the outer edge, a new page is inserted there. Move away and back to turn another page.
 - Tap a folder to open a popover above the dock over the current home screen. It uses the home grid's columns, starts at two icon rows, grows toward the folder's position, and scrolls overflow apps. Tap outside or pull down at the top of its list to close it. Dock folders stay two rows tall.
 - Swipe horizontally between pages; the workspace follows your finger and settles with an animation. The date and dock stay fixed.

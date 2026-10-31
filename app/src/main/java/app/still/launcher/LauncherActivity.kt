@@ -406,8 +406,8 @@ class LauncherActivity : Activity() {
             // Narrow grids and seven-slot docks should never clip an icon.
             val available = resources.displayMetrics.widthPixels / maxOf(store.settings.columns, store.settings.dockSlots) - dp(10)
             val side = minOf(dp(store.settings.iconSize), available).coerceAtLeast(dp(28))
-            val badged = BadgedIcon(this@LauncherActivity, badgeTargetsFor(listOf(key))) { hasBadge ->
-                contentDescription = name + if (hasBadge) ", notifications" else ""
+            val badged = BadgedIcon(this@LauncherActivity, badgeTargetsFor(listOf(key))) { count ->
+                contentDescription = name + badgeDescription(count)
             }
             badged.addView(icon, FrameLayout.LayoutParams(-1, -1))
             addView(badged, LinearLayout.LayoutParams(side, side))
@@ -442,8 +442,8 @@ class LauncherActivity : Activity() {
                 apps.find { it.key == appKey }?.let { app -> catalog.icon(app) { icon.setImageDrawable(it) } }
                 preview.addView(icon, ViewGroup.LayoutParams((side - dp(10)) / 2, (side - dp(10)) / 2))
             }
-            val badged = BadgedIcon(this@LauncherActivity, badgeTargetsFor(folder?.apps.orEmpty())) { hasBadge ->
-                contentDescription = name + if (hasBadge) ", notifications" else ""
+            val badged = BadgedIcon(this@LauncherActivity, badgeTargetsFor(folder?.apps.orEmpty())) { count ->
+                contentDescription = name + badgeDescription(count)
             }
             badged.addView(preview, FrameLayout.LayoutParams(-1, -1))
             addView(badged, LinearLayout.LayoutParams(side, side))
@@ -972,9 +972,9 @@ class LauncherActivity : Activity() {
         settingsRow(content, "Dock", "${store.settings.dockSlots} app slots", "home") { numberChoice("Dock slots", 3..7, store.settings.dockSlots) { changeDockSize(it) } }
         settingsRow(content, "App drawer grid", "${store.settings.drawerColumns} columns", "grid") { numberChoice("Drawer columns", 3..6, store.settings.drawerColumns) { store.save(settings = store.settings.copy(drawerColumns = it)); showSettings() } }
         settingsRow(content, "Hidden apps", "${store.hiddenApps.size} hidden · Choose what appears in All apps", "grid") { manageHiddenApps() }
-        settingsRow(content, "Notification badges", if (NotificationBadges.hasAccess(this)) "Notification access allowed · Manage in Android settings" else "Off · Allow notification access to show dots on apps", "settings") {
+        settingsRow(content, "Notification badges", if (NotificationBadges.hasAccess(this)) "Numbered badges · Manage access in Android settings" else "Off · Allow notification access to show counts on apps", "settings") {
             showDialog(dialogBuilder().setTitle("Notification badges")
-                .setMessage("Show a dot on apps and folders with active notifications. Android requires notification access, which can expose notification content. Still uses only the app, profile, and badge eligibility; notification content is never stored or sent. You can turn access off at any time in Android settings.")
+                .setMessage("Show numbered badges on apps and folders with active notifications. Counts use app-provided totals when available. Android requires notification access, which can expose notification content. Still uses only the app, profile, numeric count, and badge eligibility; notification content is never stored or sent. You can turn access off at any time in Android settings.")
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Open Android settings") { _, _ ->
                     safeStart(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS), "Notification access settings are unavailable.")
