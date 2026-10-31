@@ -66,6 +66,20 @@ jobs:
         run: ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.still.launcher.KeyboardSuggestionTest
       - name: Notification badges across launcher surfaces and Android access changes
         run: ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.still.launcher.NotificationBadgesIntegrationTest
+      - name: Folder popovers, scrolling, dismissal and drag extraction
+        run: ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.still.launcher.FolderPopoverIntegrationTest
+      - name: Collect folder screenshot
+        if: always()
+        run: |
+          if adb shell test -f /sdcard/Android/data/app.still.launcher/files/folder-popover.png; then
+            adb pull /sdcard/Android/data/app.still.launcher/files/folder-popover.png "$RUNNER_TEMP/folder-popover.png"
+          fi
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: folder-popover-screenshot
+          path: ${{ runner.temp }}/folder-popover.png
+          if-no-files-found: warn
       - name: Emulator diagnostics
         if: always()
         run: |

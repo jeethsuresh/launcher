@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "version": "0.5.0",
-  "versionCode": 8,
+  "version": "0.6.0",
+  "versionCode": 9,
   "changes": [
-    "Show notification dots on app icons on home screens, in the dock, in All apps, and inside folders after allowing notification access in Launcher settings.",
-    "Show a dot on folders when any app inside has an active notification, keeping work and personal profiles separate.",
-    "Update dots as notifications arrive or are dismissed, respecting Android badge settings and excluding ongoing notifications and group summaries. Dots indicate active notifications, not unread message counts."
+    "Open folders in a popover above the dock while keeping the current home screen visible, using the same number of columns as the home grid.",
+    "Start folders at two icon rows and grow toward the folder's home-screen position as needed. Dock folders stay two rows tall, and overflow apps scroll inside the popover.",
+    "Dismiss folders by tapping outside them, pressing Back or Home, or swiping down when the app list is at the top. Keep renaming, notification badges, and dragging apps out of folders."
   ]
 }
