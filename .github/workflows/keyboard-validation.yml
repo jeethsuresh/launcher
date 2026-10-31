@@ -67,8 +67,14 @@ jobs:
       - name: Notification badges across launcher surfaces and Android access changes
         run: ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.still.launcher.NotificationBadgesIntegrationTest
       - name: Collect numbered badge screenshots
-        run: adb pull /sdcard/Android/data/app.still.launcher/files/badge-screenshots badge-screenshots
+        if: always()
+        run: |
+          mkdir -p badge-screenshots
+          if adb shell test -d /sdcard/Android/data/app.still.launcher/files/badge-screenshots; then
+            adb pull /sdcard/Android/data/app.still.launcher/files/badge-screenshots/. badge-screenshots/
+          fi
       - name: Save badge screenshots and test reports
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: numbered-badge-preview

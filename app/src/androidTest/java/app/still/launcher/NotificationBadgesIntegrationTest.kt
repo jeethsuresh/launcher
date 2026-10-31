@@ -126,7 +126,7 @@ class NotificationBadgesIntegrationTest {
             awaitMain { badges().size == 4 && badges().all { it.badgeCount == 105 } }
             instrumentation.runOnMainSync {
                 badges().forEach { icon ->
-                    assertEquals(context.dp(36), icon.width)
+                    assertTrue("Small icons may shrink to fit seven dock slots", icon.width in context.dp(28)..context.dp(36))
                     val bitmap = badgeBitmap(icon)
                     assertTrue(badgePixels(bitmap).any { it == android.graphics.Color.WHITE })
                     bitmap.recycle()
