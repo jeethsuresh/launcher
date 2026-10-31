@@ -31,6 +31,7 @@ Open **Still Launcher → settings → Set as default** to choose it as your Hom
 ## What's included
 
 - Alphabetical app drawer, local app-name search, profile-badged icons, package change updates.
+- Live notification dots on home, dock, drawer, and folder icons, with optional Android notification access. Work and personal profiles stay separate.
 - Multiple home pages with page indicators, horizontal swipes, and automatic overflow pages.
 - Drag icons and widgets onto vacant cells; drag apps into the dock. Edge-hold during a drag to move between existing pages.
 - A configurable 3–7 slot dock. Shrinking the dock moves overflow apps onto the home grid.
@@ -46,6 +47,7 @@ Open **Still Launcher → settings → Set as default** to choose it as your Hom
 - Hold a drawer app and drag it straight onto home. Drop it on **Options** for Add to home, Pin to dock, App info, or Hide from All apps. TalkBack also exposes **App options**.
 - Open **Widgets** from All apps, then hold a widget and drag it to a home cell. Android permission/configuration screens retain that location. Tapping a widget still adds it automatically.
 - Open **Launcher settings → Hidden apps** to hide or restore apps. Checked apps are hidden; **Save** applies changes, **Cancel** discards edits, and **Show all** restores everything. Home and dock shortcuts stay available.
+- Open **Launcher settings → Notification badges → Open Android settings** and allow **Still Launcher notification badges**. Dots indicate active notifications, follow Android badge settings, and clear when notifications are dismissed or access is revoked. Ongoing notifications and group summaries do not create dots. Notification content is never stored or sent. See [notification badges](docs/NOTIFICATION_BADGES.md).
 - Hold an app or widget at a screen edge to turn pages. At the outer edge, a new page is inserted there. Move away and back to turn another page.
 - Swipe horizontally between pages; the workspace follows your finger and settles with an animation. The date and dock stay fixed.
 - Hold the date at the top, or empty home space, to open customization and Launcher settings.
@@ -88,7 +90,7 @@ A future feed can be a separate panel alongside the drawer and settings, with it
 
 ## Current scope
 
-This is a functional launcher preview that preserves its original signing identity. It is not a Play Store release. Portrait phone layout and English copy are the initial focus. Folders, notification dots, icon packs, pinned app shortcuts, Android Private Space integration, backup/restore, a news feed, weather services, and device-wide search are not included. Standard accessible profiles use LauncherApps; enterprise and OEM-specific policies still need physical-device testing. Layout backup is disabled because widget IDs cannot safely be restored as ordinary preference values.
+This is a functional launcher preview that preserves its original signing identity. It is not a Play Store release. Portrait phone layout and English copy are the initial focus. Icon packs, pinned app shortcuts, Android Private Space integration, backup/restore, a news feed, weather services, and device-wide search are not included. Standard accessible profiles use LauncherApps; enterprise and OEM-specific policies still need physical-device testing. Layout backup is disabled because widget IDs cannot safely be restored as ordinary preference values.
 
 See `docs/VALIDATION.md`, `docs/KEYBOARD_VALIDATION.md`, `docs/WALLPAPER_VALIDATION.md`, `docs/HIDDEN_APPS.md`, and `docs/HOME_DRAGGING.md` for build and emulator checks.
 
