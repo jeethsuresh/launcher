@@ -64,6 +64,8 @@ jobs:
           adb shell settings put secure selected_spell_checker app.still.launcher/helium314.keyboard.latin.spellcheck.AndroidSpellCheckerService
       - name: Real dictionary and code suggestion regressions
         run: ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.still.launcher.KeyboardSuggestionTest
+      - name: Notification badges across launcher surfaces and Android access changes
+        run: ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.still.launcher.NotificationBadgesIntegrationTest
       - name: Emulator diagnostics
         if: always()
         run: |

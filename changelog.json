@@ -1,12 +1,10 @@
 {
   "schemaVersion": 1,
-  "version": "0.4.1",
-  "versionCode": 7,
+  "version": "0.5.0",
+  "versionCode": 8,
   "changes": [
-    "Show native password-manager suggestions, including Proton Pass, above the keyboard on Android 11 and later.",
-    "Suggest recently copied verification codes and optional codes from newly received SMS texts for 30 seconds.",
-    "Keep short verification codes and sensitive clipboard content out of keyboard clipboard history.",
-    "Avoid false spelling warnings for text that cannot be spellchecked.",
-    "Wait for dictionaries to finish loading on a slow first spellcheck request."
+    "Show notification dots on app icons on home screens, in the dock, in All apps, and inside folders after allowing notification access in Launcher settings.",
+    "Show a dot on folders when any app inside has an active notification, keeping work and personal profiles separate.",
+    "Update dots as notifications arrive or are dismissed, respecting Android badge settings and excluding ongoing notifications and group summaries. Dots indicate active notifications, not unread message counts."
   ]
 }

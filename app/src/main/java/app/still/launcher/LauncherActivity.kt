@@ -127,7 +127,12 @@ class LauncherActivity : Activity() {
 
     override fun onStart() { super.onStart(); runCatching { widgets.host.startListening() } }
     override fun onStop() { runCatching { widgets.host.stopListening() }; super.onStop() }
-    override fun onResume() { super.onResume(); if (::catalog.isInitialized) catalog.refresh() }
+    override fun onResume() {
+        super.onResume()
+        NotificationBadges.refreshAccess(this)
+        if (::catalog.isInitialized) catalog.refresh()
+        if (panelKind == "settings") showSettings()
+    }
     override fun onDestroy() {
         destroyed = true
         if (Build.VERSION.SDK_INT >= 27) (wallpaperListener as? WallpaperManager.OnColorsChangedListener)?.let { WallpaperManager.getInstance(this).removeOnColorsChangedListener(it) }
@@ -386,7 +391,8 @@ class LauncherActivity : Activity() {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
             setPadding(dp(2), dp(5), dp(2), dp(3)); isFocusable = true
-            contentDescription = app?.label ?: "Unavailable app"
+            val name = app?.label ?: "Unavailable app"
+            contentDescription = name
             val icon = ImageView(this@LauncherActivity).apply {
                 scaleType = ImageView.ScaleType.FIT_CENTER; tag = key
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
@@ -395,7 +401,11 @@ class LauncherActivity : Activity() {
             // Narrow grids and seven-slot docks should never clip an icon.
             val available = resources.displayMetrics.widthPixels / maxOf(store.settings.columns, store.settings.dockSlots) - dp(10)
             val side = minOf(dp(store.settings.iconSize), available).coerceAtLeast(dp(28))
-            addView(icon, LinearLayout.LayoutParams(side, side))
+            val badged = BadgedIcon(this@LauncherActivity, badgeTargetsFor(listOf(key))) { hasBadge ->
+                contentDescription = name + if (hasBadge) ", notifications" else ""
+            }
+            badged.addView(icon, FrameLayout.LayoutParams(-1, -1))
+            addView(badged, LinearLayout.LayoutParams(side, side))
             if (app != null) catalog.icon(app) { drawable -> if (icon.tag == key) icon.setImageDrawable(drawable) }
             if (showLabel) addView(label(app?.label ?: "Unavailable", 11f, if (onSurface) ink else Color.WHITE).apply {
                 gravity = Gravity.CENTER; maxLines = 1; ellipsize = TextUtils.TruncateAt.END
@@ -407,12 +417,16 @@ class LauncherActivity : Activity() {
 
     private fun entryTile(key: String, labels: Boolean) = if (key.startsWith("folder:")) folderTile(key, labels) else appTile(key, labels, false)
     private fun openEntry(key: String) { if (key.startsWith("folder:")) openFolder(key) else launch(key) }
+    private fun badgeTargetsFor(keys: List<String>): Set<BadgeTarget> = keys.mapNotNull { key ->
+        apps.find { it.key == key }?.let { BadgeTarget(it.info.componentName.packageName, catalog.serial(it.info.user)) }
+    }.toSet()
 
     private fun folderTile(key: String, showLabel: Boolean): View {
         val folder = store.folders.find { it.key == key }
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; isFocusable = true
-            contentDescription = "${folder?.title ?: "Folder"}, folder, ${folder?.apps?.size ?: 0} apps"
+            val name = "${folder?.title ?: "Folder"}, folder, ${folder?.apps?.size ?: 0} apps"
+            contentDescription = name
             val preview = GridLayout(this@LauncherActivity).apply {
                 columnCount = 2; rowCount = 2; setPadding(dp(5), dp(5), dp(5), dp(5))
                 background = rounded(0x66d0e8d6, dp(16).toFloat()); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
@@ -423,7 +437,11 @@ class LauncherActivity : Activity() {
                 apps.find { it.key == appKey }?.let { app -> catalog.icon(app) { icon.setImageDrawable(it) } }
                 preview.addView(icon, ViewGroup.LayoutParams((side - dp(10)) / 2, (side - dp(10)) / 2))
             }
-            addView(preview, LinearLayout.LayoutParams(side, side))
+            val badged = BadgedIcon(this@LauncherActivity, badgeTargetsFor(folder?.apps.orEmpty())) { hasBadge ->
+                contentDescription = name + if (hasBadge) ", notifications" else ""
+            }
+            badged.addView(preview, FrameLayout.LayoutParams(-1, -1))
+            addView(badged, LinearLayout.LayoutParams(side, side))
             if (showLabel) addView(label(folder?.title ?: "Folder", 11f, Color.WHITE).apply {
                 gravity = Gravity.CENTER; maxLines = 1; ellipsize = TextUtils.TruncateAt.END
             }, LinearLayout.LayoutParams(-1, dp(22)).apply { topMargin = dp(5) })
@@ -918,6 +936,14 @@ class LauncherActivity : Activity() {
         settingsRow(content, "Dock", "${store.settings.dockSlots} app slots", "home") { numberChoice("Dock slots", 3..7, store.settings.dockSlots) { changeDockSize(it) } }
         settingsRow(content, "App drawer grid", "${store.settings.drawerColumns} columns", "grid") { numberChoice("Drawer columns", 3..6, store.settings.drawerColumns) { store.save(settings = store.settings.copy(drawerColumns = it)); showSettings() } }
         settingsRow(content, "Hidden apps", "${store.hiddenApps.size} hidden · Choose what appears in All apps", "grid") { manageHiddenApps() }
+        settingsRow(content, "Notification badges", if (NotificationBadges.hasAccess(this)) "Notification access allowed · Manage in Android settings" else "Off · Allow notification access to show dots on apps", "settings") {
+            showDialog(dialogBuilder().setTitle("Notification badges")
+                .setMessage("Show a dot on apps and folders with active notifications. Android requires notification access, which can expose notification content. Still uses only the app, profile, and badge eligibility; notification content is never stored or sent. You can turn access off at any time in Android settings.")
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Open Android settings") { _, _ ->
+                    safeStart(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS), "Notification access settings are unavailable.")
+                }.create())
+        }
         settingsRow(content, "Icon size", "${store.settings.iconSize} dp", "widgets") { numberChoice("Icon size", listOf(36, 40, 44, 48, 52, 56, 60, 64), store.settings.iconSize) { store.save(settings = store.settings.copy(iconSize = it)); renderHome(); showSettings() } }
         switchRow(content, "App labels", "Show names on the home screen", store.settings.labels) { store.save(settings = store.settings.copy(labels = it)); renderHome() }
         switchRow(content, "Lock layout", "Keep icons and widgets in place", store.settings.locked) { store.save(settings = store.settings.copy(locked = it)); if (it) setEditing(false) }
