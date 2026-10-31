@@ -89,6 +89,18 @@ jobs:
             badge-screenshots/
             app/build/reports/androidTests/connected/
           if-no-files-found: error
+      - name: Folder popovers, scrolling, dismissal and drag extraction
+        run: ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.still.launcher.FolderPopoverIntegrationTest
+      - name: Collect folder screenshot
+        if: always()
+        run: |
+          adb pull /sdcard/Download/folder-popover.png "$RUNNER_TEMP/folder-popover.png"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: folder-popover-screenshot
+          path: ${{ runner.temp }}/folder-popover.png
+          if-no-files-found: error
       - name: Emulator diagnostics
         if: always()
         run: |
