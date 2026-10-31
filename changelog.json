@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "version": "0.5.1",
-  "versionCode": 9,
+  "version": "0.6.0",
+  "versionCode": 10,
   "changes": [
-    "Show numbered notification badges on app icons across home screens, the dock, All apps and folders, with 99+ for large counts.",
-    "Use counts supplied by apps when available, otherwise count each eligible active notification as one. Group summaries and ongoing notifications remain excluded.",
-    "Folder badges add counts for contained apps without counting duplicate app shortcuts twice. TalkBack announces the full count, and Android badge settings and profile separation are preserved."
+    "Open folders in a popover above the dock while keeping the current home screen visible, using the same number of columns as the home grid.",
+    "Start folders at two icon rows and grow toward the folder's home-screen position as needed. Dock folders stay two rows tall, and overflow apps scroll inside the popover.",
+    "Dismiss folders by tapping outside them, pressing Back or Home, or swiping down when the app list is at the top. Keep renaming, notification badges, and dragging apps out of folders."
   ]
 }

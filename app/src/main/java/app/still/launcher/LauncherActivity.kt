@@ -69,6 +69,9 @@ class LauncherActivity : Activity() {
     private var drawerAdapter: AppsAdapter? = null
     private var drawerSummary: TextView? = null
     private var drawerEmpty: TextView? = null
+    private var folderAdapter: BaseAdapter? = null
+    private var openFolderKey: String? = null
+    private var folderFromDock = false
     private var editing = false
     private var dragging = false
     private var draggedItem: HomeItem? = null
@@ -155,6 +158,7 @@ class LauncherActivity : Activity() {
                 "drawer" -> showDrawer(query)
                 "widgets" -> showWidgets()
                 "wallpapers" -> showWallpapers()
+                "folder" -> openFolderKey?.let { openFolder(it, folderFromDock) }
             }
         }
     }
@@ -230,6 +234,7 @@ class LauncherActivity : Activity() {
         // Keep unavailable-profile shortcuts; they return when that profile is unlocked.
         renderHome()
         drawerAdapter?.filter(drawerAdapter?.query ?: "")
+        folderAdapter?.notifyDataSetChanged()
     }
 
     private fun renderHome() {
@@ -416,7 +421,7 @@ class LauncherActivity : Activity() {
     }
 
     private fun entryTile(key: String, labels: Boolean) = if (key.startsWith("folder:")) folderTile(key, labels) else appTile(key, labels, false)
-    private fun openEntry(key: String) { if (key.startsWith("folder:")) openFolder(key) else launch(key) }
+    private fun openEntry(key: String) { if (key.startsWith("folder:")) openFolder(key, fromDock = true) else launch(key) }
     private fun badgeTargetsFor(keys: List<String>): Set<BadgeTarget> = keys.mapNotNull { key ->
         apps.find { it.key == key }?.let { BadgeTarget(it.info.componentName.packageName, catalog.serial(it.info.user)) }
     }.toSet()
@@ -448,25 +453,54 @@ class LauncherActivity : Activity() {
         }
     }
 
-    private fun openFolder(key: String) {
+    private fun openFolder(key: String, fromDock: Boolean = false) {
         val folder = store.folders.find { it.key == key } ?: return
-        val body = panelBase(folder.title, "Hold and drag an app out to home or the dock.", "folder")
-        val header = body.getChildAt(0) as LinearLayout
-        header.addView(pill("Rename", card, ink) { renameFolder(key) }, header.childCount - 1, LinearLayout.LayoutParams(dp(88), dp(40)))
-        val grid = GridView(this).apply { numColumns = store.settings.drawerColumns; verticalSpacing = dp(12); isVerticalScrollBarEnabled = false }
-        grid.adapter = object : BaseAdapter() {
+        closePanel()
+        openFolderKey = key; folderFromDock = fromDock; panelKind = "folder"
+        val rowHeight = dp(maxOf(88, store.settings.iconSize + 44))
+        val body = PullDownDrawerLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; background = rounded(surface, dp(24).toFloat())
+            setPadding(dp(12), dp(8), dp(12), dp(8)); isClickable = true
+            elevation = dp(12).toFloat(); contentDescription = "${folder.title}, open folder"
+            if (Build.VERSION.SDK_INT >= 28) accessibilityPaneTitle = folder.title
+        }
+        val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        header.addView(label(folder.title, 18f, ink, true).apply { maxLines = 1; ellipsize = TextUtils.TruncateAt.END }, LinearLayout.LayoutParams(0, -2, 1f))
+        header.addView(pill("Rename", card, ink) { renameFolder(key) }, LinearLayout.LayoutParams(dp(80), dp(40)))
+        header.addView(iconButton("close", "Back to home", ink) { closePanel() }, LinearLayout.LayoutParams(dp(48), dp(48)))
+        body.addView(header, LinearLayout.LayoutParams(-1, dp(48)))
+        val grid = GridView(this).apply {
+            numColumns = store.settings.columns; stretchMode = GridView.STRETCH_COLUMN_WIDTH
+            horizontalSpacing = dp(2); isVerticalScrollBarEnabled = true
+            contentDescription = "Folder apps"
+        }
+        val adapter = object : BaseAdapter() {
             override fun getCount() = folder.apps.size
             override fun getItem(position: Int) = folder.apps[position]
             override fun getItemId(position: Int) = position.toLong()
             override fun getView(position: Int, convertView: View?, parent: ViewGroup): View = appTile(folder.apps[position], true, true).apply {
-                layoutParams = AbsListView.LayoutParams(-1, dp(102)); isFocusable = false
+                layoutParams = AbsListView.LayoutParams(-1, rowHeight); isFocusable = false
             }
         }
+        folderAdapter = adapter; grid.adapter = adapter
         grid.setOnItemClickListener { _, _, position, _ -> launch(folder.apps[position]) }
         grid.setOnItemLongClickListener { _, view, position, _ ->
             beginDrag(view, DragPayload(appKey = folder.apps[position], folderKey = key), fromPicker = true); true
         }
         body.addView(grid, LinearLayout.LayoutParams(-1, 0, 1f))
+        val overlay = FolderPopover(this, body, folder.apps.size, store.settings.columns, rowHeight, dp(64),
+            dockTop = { home.top + dock.top },
+            folderTop = {
+                if (fromDock) null else store.items.find { it.kind == ItemKind.FOLDER && it.appKey == key && it.page == currentPage }
+                    ?.let { home.top + pager.top + (it.y * workspace.cellHeight).toInt() }
+            }, dismissed = ::closePanel)
+        body.canPull = { !grid.canScrollVertically(-1) }
+        body.dismissed = { if (panel === overlay) closePanel() }
+        panel = overlay
+        home.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+        safe.addView(overlay, FrameLayout.LayoutParams(-1, -1))
+        header.getChildAt(header.childCount - 1).requestFocus()
+        updateSystemBars(); root.requestApplyInsets()
     }
 
     private fun renameFolder(key: String) {
@@ -479,7 +513,7 @@ class LauncherActivity : Activity() {
         showDialog(dialogBuilder().setTitle("Rename folder").setView(name).setNegativeButton("Cancel", null)
             .setPositiveButton("Save") { _, _ ->
                 store.save(folders = store.folders.map { if (it.key == key) it.copy(title = name.text.toString().trim().ifEmpty { "Folder" }) else it })
-                renderHome(); if (panelKind == "folder") openFolder(key)
+                renderHome(); if (panelKind == "folder") openFolder(key, folderFromDock)
             }.create())
     }
 
@@ -739,7 +773,7 @@ class LauncherActivity : Activity() {
     private fun dockMenu(key: String) {
         if (key.startsWith("folder:")) {
             dialog(store.folders.find { it.key == key }?.title ?: "Folder", listOf("Open folder", "Rename folder", "Remove from dock")) { index ->
-                if (index == 0) openFolder(key)
+                if (index == 0) openFolder(key, fromDock = true)
                 else if (!store.settings.locked) { if (index == 1) renameFolder(key) else { store.save(dock = store.dock.filterNot { it == key }); renderDock() } }
                 else message("Unlock the layout in settings to edit the dock.")
             }; return
@@ -917,6 +951,8 @@ class LauncherActivity : Activity() {
 
     private fun closePanel() {
         hideKeyboard(); panel?.let { safe.removeView(it) }; if (::home.isInitialized) home.visibility = View.VISIBLE; panel = null; panelKind = ""; drawerAdapter = null; drawerSummary = null; drawerEmpty = null
+        folderAdapter = null; openFolderKey = null
+        if (::home.isInitialized) home.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
         if (::root.isInitialized) { updateSystemBars(); root.requestApplyInsets() }
     }
 
@@ -1367,7 +1403,7 @@ class LauncherActivity : Activity() {
     }
     private fun hideKeyboard() { currentFocus?.let { getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(it.windowToken, 0) } }
     private fun updateSystemBars() {
-        val lightBars = panel != null && light
+        val lightBars = panel != null && panelKind != "folder" && light
         if (Build.VERSION.SDK_INT >= 30) {
             window.insetsController?.setSystemBarsAppearance(if (lightBars) android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS else 0,
                 android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS)
