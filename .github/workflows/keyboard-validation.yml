@@ -66,6 +66,16 @@ jobs:
         run: ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.still.launcher.KeyboardSuggestionTest
       - name: Notification badges across launcher surfaces and Android access changes
         run: ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.still.launcher.NotificationBadgesIntegrationTest
+      - name: Collect numbered badge screenshots
+        run: adb pull /sdcard/Android/data/app.still.launcher/files/badge-screenshots badge-screenshots
+      - name: Save badge screenshots and test reports
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: numbered-badge-preview
+          path: |
+            badge-screenshots/
+            app/build/reports/androidTests/connected/
+          if-no-files-found: error
       - name: Emulator diagnostics
         if: always()
         run: |

@@ -27,6 +27,7 @@ public class BadgeTestReceiver extends BroadcastReceiver {
             boolean summary = intent.getBooleanExtra("summary", false);
             Notification.Builder builder = new Notification.Builder(context, channel == null ? "badge-test" : channel)
                 .setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle("Badge integration test")
+                .setNumber(intent.getIntExtra("number", 0))
                 .setOngoing(intent.getBooleanExtra("ongoing", false));
             if (summary || intent.getBooleanExtra("group", false)) builder.setGroup("badge-test-group").setGroupSummary(summary);
             manager.notify(intent.getIntExtra("id", 0), builder.build());
