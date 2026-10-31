@@ -1,8 +1,8 @@
 package app.still.launcher
 
 import android.content.Intent
-import android.graphics.Bitmap
 import android.os.Bundle
+import android.os.ParcelFileDescriptor
 import android.view.View
 import android.view.ViewGroup
 import android.view.accessibility.AccessibilityNodeInfo
@@ -12,7 +12,6 @@ import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
 import androidx.test.runner.lifecycle.Stage
 import org.junit.Assert.*
 import org.junit.Test
-import java.io.File
 
 class FolderPopoverIntegrationTest {
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
@@ -72,10 +71,9 @@ class FolderPopoverIntegrationTest {
             assertNull(LauncherTestUi.find(popover!!) { it.contentDescription == "Search installed apps" })
         }
         instrumentation.waitForIdleSync()
-        instrumentation.uiAutomation.takeScreenshot().let { screenshot ->
-            File(context.getExternalFilesDir(null), "folder-popover.png").outputStream().use { screenshot.compress(Bitmap.CompressFormat.PNG, 100, it) }
-            screenshot.recycle()
-        }
+        // Gradle uninstalls the test apps afterward; shared shell-owned output survives cleanup.
+        shell("mkdir -p /sdcard/Download")
+        shell("screencap -p /sdcard/Download/folder-popover.png")
         val underlying = onMain { find { it.contentDescription == apps.first().label }!! }
         val appBounds = LauncherTestUi.bounds(underlying)
         assertTrue(appBounds.bottom < bounds.top)
@@ -195,4 +193,7 @@ class FolderPopoverIntegrationTest {
             LauncherStore(context).apply { save(state.items, state.dock, settings, state.folders); this.pages = pages; saveHiddenApps(hidden) }
         }
     }
+
+    private fun shell(command: String) = ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand(command))
+        .bufferedReader().use { it.readText() }
 }
