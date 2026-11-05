@@ -36,9 +36,9 @@ jobs:
         run: |
           sudo chmod a+rw /dev/kvm
           mkdir -p "$ANDROID_AVD_HOME"
-          echo no | avdmanager create avd --force -n still_test -k 'system-images;android-35;google_apis;x86_64'
+          echo no | avdmanager create avd --force -n still_test -k 'system-images;android-35;google_apis;x86_64' --device pixel_2
           "$ANDROID_HOME/emulator/emulator" -version
-          "$ANDROID_HOME/emulator/emulator" -avd still_test -accel on -memory 2048 -cores 2 -no-window -no-audio -no-boot-anim -no-snapshot -no-metrics -gpu swiftshader -feature -Vulkan > "$RUNNER_TEMP/emulator.log" 2>&1 &
+          "$ANDROID_HOME/emulator/emulator" -avd still_test -accel on -memory 2048 -cores 2 -no-window -no-audio -no-boot-anim -no-snapshot -no-metrics -gpu swiftshader -feature -Vulkan -prop qemu.hw.mainkeys=0 > "$RUNNER_TEMP/emulator.log" 2>&1 &
           emulator_pid=$!
           sleep 3
           if ! kill -0 "$emulator_pid"; then cat "$RUNNER_TEMP/emulator.log"; exit 1; fi
