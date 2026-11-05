@@ -48,6 +48,8 @@ jobs:
             sleep 2
           done
           test "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1
+          adb shell input keyevent KEYCODE_WAKEUP
+          adb shell wm dismiss-keyguard
           adb shell input keyevent 82
           adb shell settings put global window_animation_scale 0
           adb shell settings put global transition_animation_scale 0
@@ -60,6 +62,7 @@ jobs:
           adb shell ime enable app.still.launcher/helium314.keyboard.latin.LatinIME
           adb shell ime set app.still.launcher/helium314.keyboard.latin.LatinIME
           adb shell settings put secure show_ime_with_hard_keyboard 1
+          test "$(adb shell settings get secure default_input_method | tr -d '\r')" = 'app.still.launcher/helium314.keyboard.latin.LatinIME'
           adb shell settings put secure spell_checker_enabled 1
           adb shell settings put secure selected_spell_checker app.still.launcher/helium314.keyboard.latin.spellcheck.AndroidSpellCheckerService
       - name: Real dictionary and code suggestion regressions
@@ -106,5 +109,6 @@ jobs:
         run: |
           if [ -f "$RUNNER_TEMP/emulator.log" ]; then tail -150 "$RUNNER_TEMP/emulator.log"; fi
           adb devices -l
+          if adb get-state >/dev/null 2>&1; then adb shell dumpsys input_method; fi
           if adb get-state >/dev/null 2>&1; then adb logcat -d -t 200; fi
           if adb get-state >/dev/null 2>&1; then adb logcat -d -s StillSuggestionTest:V AndroidWordLevelSpellCheckerSession:V DictionaryFacilitatorImpl:V AndroidRuntime:E; fi
