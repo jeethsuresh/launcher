@@ -487,7 +487,7 @@ class LauncherActivity : Activity() {
         val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         header.addView(label(folder.title, 18f, ink, true).apply { maxLines = 1; ellipsize = TextUtils.TruncateAt.END }, LinearLayout.LayoutParams(0, -2, 1f))
         header.addView(pill("Rename", card, ink) { renameFolder(key) }, LinearLayout.LayoutParams(dp(80), dp(40)))
-        header.addView(iconButton("close", "Back", ink) { handleBack() }, LinearLayout.LayoutParams(dp(48), dp(48)))
+        header.addView(iconButton("close", "Back to home", ink) { closePanel() }, LinearLayout.LayoutParams(dp(48), dp(48)))
         body.addView(header, LinearLayout.LayoutParams(-1, dp(48)))
         val grid = GridView(this).apply {
             numColumns = store.settings.columns; stretchMode = GridView.STRETCH_COLUMN_WIDTH
@@ -953,7 +953,7 @@ class LauncherActivity : Activity() {
         }
         val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         header.addView(if (kind == "drawer") View(this) else label(kind.uppercase(Locale.ROOT), 10f, muted, true).apply { letterSpacing = .18f }, LinearLayout.LayoutParams(0, -2, 1f))
-        header.addView(iconButton("close", "Back", ink) { handleBack() }, LinearLayout.LayoutParams(dp(48), dp(48)))
+        header.addView(iconButton("close", "Back to home", ink) { closePanel() }, LinearLayout.LayoutParams(dp(48), dp(48)))
         body.addView(header, LinearLayout.LayoutParams(-1, dp(52)))
         if (title.isNotEmpty()) body.addView(label(title, 34f, ink).apply { letterSpacing = -.04f }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
         if (kind != "drawer") body.addView(label(subtitle, 13f, muted).apply { tag = "panelSubtitle"; setLineSpacing(dp(3).toFloat(), 1f) }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10); bottomMargin = dp(24) })
