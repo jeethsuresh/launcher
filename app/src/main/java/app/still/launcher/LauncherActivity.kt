@@ -31,6 +31,8 @@ import android.text.TextUtils
 import android.util.SizeF
 import android.view.DragEvent
 import android.view.Gravity
+import cool.gravitas.navigation.NavigationHistory
+import cool.gravitas.navigation.GravitasEdgeNavigation
 import android.view.HapticFeedbackConstants
 import android.view.View
 import android.view.ViewGroup
@@ -125,6 +127,9 @@ class LauncherActivity : Activity() {
             WallpaperManager.getInstance(this).addOnColorsChangedListener(listener, main)
         }
         if (Build.VERSION.SDK_INT >= 33) onBackInvokedDispatcher.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT) { handleBack() }
+        GravitasEdgeNavigation.install(this, { handleBack() }, {
+            if (activeDialog?.isShowing != true && !editing) panelHistory.forward()?.let { restorePanel(it) }
+        })
         catalog.refresh()
     }
 
@@ -165,13 +170,27 @@ class LauncherActivity : Activity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         activeDialog?.dismiss()
+        panelHistory.reset("")
         if (panel != null || editing) { closePanel(); setEditing(false) } else navigatePage(0)
     }
     @Deprecated("Platform callback supports Android 8 and later")
     override fun onBackPressed() = handleBack()
 
+    private val panelHistory = NavigationHistory("")
+    private fun restorePanel(kind: String) {
+        when (kind) {
+            "settings" -> showSettings()
+            "drawer" -> showDrawer()
+            "widgets" -> showWidgets()
+            "wallpapers" -> showWallpapers()
+            else -> if (kind.startsWith("folder/")) {
+                val destination = kind.split('/')
+                openFolder(destination[1], destination.getOrNull(2) == "true")
+            } else closePanel(record = false)
+        }
+    }
     private fun handleBack() {
-        when { activeDialog?.isShowing == true -> activeDialog?.dismiss(); panel != null -> closePanel(); editing -> setEditing(false); currentPage != 0 -> navigatePage(0); else -> Unit }
+        when { activeDialog?.isShowing == true -> activeDialog?.dismiss(); panel != null -> panelHistory.back()?.let { restorePanel(it) } ?: closePanel(); editing -> setEditing(false); currentPage != 0 -> navigatePage(0); else -> Unit }
     }
 
     private fun createHome() {
@@ -455,7 +474,8 @@ class LauncherActivity : Activity() {
 
     private fun openFolder(key: String, fromDock: Boolean = false) {
         val folder = store.folders.find { it.key == key } ?: return
-        closePanel()
+        panelHistory.visit("folder/$key/$fromDock")
+        closePanel(record = false)
         openFolderKey = key; folderFromDock = fromDock; panelKind = "folder"
         val rowHeight = dp(maxOf(88, store.settings.iconSize + 44))
         val body = PullDownDrawerLayout(this).apply {
@@ -467,7 +487,7 @@ class LauncherActivity : Activity() {
         val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         header.addView(label(folder.title, 18f, ink, true).apply { maxLines = 1; ellipsize = TextUtils.TruncateAt.END }, LinearLayout.LayoutParams(0, -2, 1f))
         header.addView(pill("Rename", card, ink) { renameFolder(key) }, LinearLayout.LayoutParams(dp(80), dp(40)))
-        header.addView(iconButton("close", "Back to home", ink) { closePanel() }, LinearLayout.LayoutParams(dp(48), dp(48)))
+        header.addView(iconButton("close", "Back", ink) { handleBack() }, LinearLayout.LayoutParams(dp(48), dp(48)))
         body.addView(header, LinearLayout.LayoutParams(-1, dp(48)))
         val grid = GridView(this).apply {
             numColumns = store.settings.columns; stretchMode = GridView.STRETCH_COLUMN_WIDTH
@@ -925,14 +945,15 @@ class LauncherActivity : Activity() {
     }
 
     private fun panelBase(title: String, subtitle: String, kind: String): LinearLayout {
-        closePanel(); panelKind = kind
+        panelHistory.visit(kind)
+        closePanel(record = false); panelKind = kind
         val body = (if (kind == "drawer") PullDownDrawerLayout(this) else LinearLayout(this)).apply {
             orientation = LinearLayout.VERTICAL; background = rounded(if (kind == "drawer") tinted(store.settings.drawerColor.ifEmpty { if (light) "#f3f5f0" else "#101b18" }, store.settings.drawerOpacity) else surface, dp(28).toFloat())
             setPadding(dp(24), dp(8), dp(24), dp(12)); isClickable = true
         }
         val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         header.addView(if (kind == "drawer") View(this) else label(kind.uppercase(Locale.ROOT), 10f, muted, true).apply { letterSpacing = .18f }, LinearLayout.LayoutParams(0, -2, 1f))
-        header.addView(iconButton("close", "Back to home", ink) { closePanel() }, LinearLayout.LayoutParams(dp(48), dp(48)))
+        header.addView(iconButton("close", "Back", ink) { handleBack() }, LinearLayout.LayoutParams(dp(48), dp(48)))
         body.addView(header, LinearLayout.LayoutParams(-1, dp(52)))
         if (title.isNotEmpty()) body.addView(label(title, 34f, ink).apply { letterSpacing = -.04f }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
         if (kind != "drawer") body.addView(label(subtitle, 13f, muted).apply { tag = "panelSubtitle"; setLineSpacing(dp(3).toFloat(), 1f) }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10); bottomMargin = dp(24) })
@@ -949,7 +970,8 @@ class LauncherActivity : Activity() {
         return body
     }
 
-    private fun closePanel() {
+    private fun closePanel(record: Boolean = true) {
+        if (record && panel != null) panelHistory.visit("")
         hideKeyboard(); panel?.let { safe.removeView(it) }; if (::home.isInitialized) home.visibility = View.VISIBLE; panel = null; panelKind = ""; drawerAdapter = null; drawerSummary = null; drawerEmpty = null
         folderAdapter = null; openFolderKey = null
         if (::home.isInitialized) home.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_AUTO

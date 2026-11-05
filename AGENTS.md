@@ -22,3 +22,7 @@ Increase both the stable version and Android version code for a new release. A p
 Before merging changes intended for Android users, explicitly increase both the stable version and Android version code in `app/build.gradle.kts`. CI publishes the version declared in source; do not replace this with automatic version allocation or overwrite an existing release.
 
 Every new version must update the tracked [`changelog.json`](changelog.json) in the same PR. Use schema version 1, matching `version` and integer `versionCode`, and a nonempty `changes` array of concise, user-facing plain-text strings. Explain actual behavior changes, fixes, and relevant limitations. CI must reject a missing, malformed or mismatched changelog before signing. Publish `changelog.json` as a verified release asset alongside the APK, checksums and manifest so Private Store can show users what changed. Verify both the public changelog download and its notes in the live Store catalog before declaring the release complete.
+
+## Android back and forward navigation
+
+All current and future Gravitas Android touch interfaces must follow [ANDROID_NAVIGATION.md](ANDROID_NAVIGATION.md): left-edge Back and right-edge Forward on Android 14+, bounded destination history, safe restoration without repeating actions, keyboard/modal precedence, and account isolation. New screens must integrate the shared history and include relevant regression coverage. Keep legacy Back behavior on older Android versions.
