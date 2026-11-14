@@ -1022,7 +1022,7 @@ class LauncherActivity : Activity() {
         settingsRow(content, "Glyph Keyboard", "Swipe typing, emoji search, and held toolbar controls", "settings") {
             startActivity(Intent(this, KeyboardSetupActivity::class.java))
         }
-        section(content, "STILL LAUNCHER")
+        section(content, "GLYPH")
         content.addView(label("A quieter kind of home.\nVersion ${BuildConfig.VERSION_NAME} · Works entirely on your device.\nNo ads. No account. No network permission.", 12f, muted).apply { setLineSpacing(dp(6).toFloat(), 1f); setPadding(dp(4), dp(8), 0, dp(24)) })
     }
 
