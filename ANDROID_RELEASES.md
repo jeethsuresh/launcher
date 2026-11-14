@@ -1,6 +1,6 @@
 # Signed Android releases
 
-Still Launcher uses the same release process as the other Gravitas Android apps. Signing runs on GitHub-hosted runners; a local machine never needs the private key.
+Glyph uses the same release process as the other Gravitas Android apps. Signing runs on GitHub-hosted runners; a local machine never needs the private key.
 
 Increase both the stable version and Android version code in `app/build.gradle.kts`, then merge or push to `main`. **Signed Android release** automatically tests, builds, verifies and publishes the new version. An already published version is skipped. Existing tags, drafts and published assets are never overwritten. A lower version or non-increasing version code fails before signing.
 

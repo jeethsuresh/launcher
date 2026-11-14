@@ -1,12 +1,12 @@
-# Still Launcher
+# Glyph
 
-A native Kotlin Android home launcher inspired by the simplicity of Fossify. Android 8.0+; optimized for portrait phones. The launcher is an original implementation, with no Fossify source or assets copied. Still Keyboard is based on HeliBoard 3.5; see `THIRD_PARTY.md` for source and licenses.
+Glyph combines an Android home launcher and an offline system keyboard in one app. The native Kotlin launcher is inspired by the simplicity of Fossify. Android 8.0+; optimized for portrait phones. The launcher is an original implementation, with no Fossify source or assets copied. Glyph Keyboard is based on HeliBoard 3.5; see `THIRD_PARTY.md` for source and licenses.
 
 ## Download
 
 Get the installable APK from [GitHub Releases](https://github.com/jeethsuresh/launcher/releases). GitHub automatically builds and publishes release APKs after a version bump on `main`, preserving the original preview signing certificate so installed apps update in place. See [signed Android releases](ANDROID_RELEASES.md).
 
-<img src="docs/images/home.png" alt="Still Launcher home screen with a clock widget and app dock" width="320" />
+<img src="docs/images/home.png" alt="Glyph home screen with a clock widget and app dock" width="320" />
 
 ## Build and run
 
@@ -26,7 +26,7 @@ export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 ./gradlew assembleDebug
 ```
 
-Open **Still Launcher → settings → Set as default** to choose it as your Home app. You can switch back through Android Settings → Apps → Default apps → Home app. Installing the APK does not automatically change your default.
+Open **Glyph → settings → Set as default** to choose it as your Home app. You can switch back through Android Settings → Apps → Default apps → Home app. Installing the APK does not automatically change your default.
 
 ## What's included
 
@@ -38,7 +38,7 @@ Open **Still Launcher → settings → Set as default** to choose it as your Hom
 - Native third-party widgets, including Android's bind consent and provider configuration screens.
 - Widget size controls with a grid preview, collision checks, provider resize directions and minimum/maximum dimensions.
 - Home grid: 3–7 columns, 4–9 rows. Drawer: 3–6 columns. Icon size, home labels, layout lock, dark/light/system appearance.
-- Three original vector-drawn wallpapers, photo selection, device/live wallpaper support, and a darkness control. Home follows Android’s active wallpaper, including changes made outside Still.
+- Three original vector-drawn wallpapers, photo selection, device/live wallpaper support, and a darkness control. Home follows Android’s active wallpaper, including changes made outside Glyph.
 - Local layout/settings persistence. No ads, accounts, analytics, or network permission.
 
 ## Controls
@@ -47,7 +47,7 @@ Open **Still Launcher → settings → Set as default** to choose it as your Hom
 - Hold a drawer app and drag it straight onto home. Drop it on **Options** for Add to home, Pin to dock, App info, or Hide from All apps. TalkBack also exposes **App options**.
 - Open **Widgets** from All apps, then hold a widget and drag it to a home cell. Android permission/configuration screens retain that location. Tapping a widget still adds it automatically.
 - Open **Launcher settings → Hidden apps** to hide or restore apps. Checked apps are hidden; **Save** applies changes, **Cancel** discards edits, and **Show all** restores everything. Home and dock shortcuts stay available.
-- Open **Launcher settings → Notification badges → Open Android settings** and allow **Still Launcher notification badges**. Badges use app-provided notification counts, or one per eligible notification when no count is supplied, and show `99+` above 99. They follow Android badge settings and clear when notifications are dismissed or access is revoked. Ongoing notifications and group summaries are excluded. Notification content is never stored or sent. See [notification badges](docs/NOTIFICATION_BADGES.md).
+- Open **Launcher settings → Notification badges → Open Android settings** and allow **Glyph notification badges**. Badges use app-provided notification counts, or one per eligible notification when no count is supplied, and show `99+` above 99. They follow Android badge settings and clear when notifications are dismissed or access is revoked. Ongoing notifications and group summaries are excluded. Notification content is never stored or sent. See [notification badges](docs/NOTIFICATION_BADGES.md).
 - Hold an app or widget at a screen edge to turn pages. At the outer edge, a new page is inserted there. Move away and back to turn another page.
 - Tap a folder to open a popover above the dock over the current home screen. It uses the home grid's columns, starts at two icon rows, grows toward the folder's position, and scrolls overflow apps. Tap outside or pull down at the top of its list to close it. Dock folders stay two rows tall.
 - Swipe horizontally between pages; the workspace follows your finger and settles with an animation. The date and dock stay fixed.
@@ -59,9 +59,9 @@ Open **Still Launcher → settings → Set as default** to choose it as your Hom
 - An empty home page can be removed by holding its background. At least one page remains.
 - Back closes panels/edit mode; Home returns to the launcher and then the first page.
 
-## Still Keyboard
+## Glyph Keyboard
 
-Open **Launcher settings → Still Keyboard** to enable and select the included system keyboard.
+Open **Launcher settings → Glyph Keyboard** to enable and select the included system keyboard.
 It works in other Android apps too.
 
 - Rounded light/dark keys and an apostrophe in Android's usual comma position.
@@ -73,7 +73,7 @@ It works in other Android apps too.
 
 See `docs/KEYBOARD.md` for controls, setup, and testing, and `THIRD_PARTY.md` for licensing.
 
-<img src="docs/images/keyboard.png" alt="Still Keyboard with apostrophe beside the space bar" width="280" /> <img src="docs/images/widgets-grouped.png" alt="Widget picker grouped alphabetically by app" width="280" />
+<img src="docs/images/keyboard.png" alt="Glyph Keyboard with apostrophe beside the space bar" width="280" /> <img src="docs/images/widgets-grouped.png" alt="Widget picker grouped alphabetically by app" width="280" />
 Widgets in the picker are grouped by app, with apps in alphabetical order.
 
 ## Structure and future additions

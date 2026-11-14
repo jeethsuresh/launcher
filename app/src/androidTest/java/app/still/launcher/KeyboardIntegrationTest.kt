@@ -14,7 +14,7 @@ import android.widget.EditText
 import android.graphics.Bitmap
 import helium314.keyboard.keyboard.KeyboardSwitcher
 
-/** Run on an emulator with Still Keyboard selected. Exercises real continuous touch strokes. */
+/** Run on an emulator with Glyph Keyboard selected. Exercises real continuous touch strokes. */
 @Suppress("DEPRECATION")
 class KeyboardIntegrationTest {
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
@@ -76,7 +76,7 @@ class KeyboardIntegrationTest {
             val points = mutableListOf<Pair<Float, Float>>()
             instrumentation.runOnMainSync {
                 val view = KeyboardSwitcher.getInstance().mainKeyboardView
-                assertNotNull("Select Still Keyboard before running this test", view)
+                assertNotNull("Select Glyph Keyboard before running this test", view)
                 val location = IntArray(2); view.getLocationOnScreen(location)
                 val keys = view.keyboard!!.sortedKeys
                 assertTrue("Keyboard must be displayed", view.isShown && view.height > 0)

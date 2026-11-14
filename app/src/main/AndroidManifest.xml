@@ -8,8 +8,8 @@
         <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent>
         <intent><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent>
     </queries>
-    <application android:enableOnBackInvokedCallback="true" android:name="helium314.keyboard.latin.App" android:allowBackup="false" android:dataExtractionRules="@xml/data_extraction_rules" android:label="Still Launcher" android:icon="@mipmap/ic_launcher" android:theme="@style/AppTheme" android:supportsRtl="true">
-        <service android:name=".NotificationBadgesService" android:label="Still Launcher notification badges"
+    <application android:enableOnBackInvokedCallback="true" android:name="helium314.keyboard.latin.App" android:allowBackup="false" android:dataExtractionRules="@xml/data_extraction_rules" android:label="Glyph" android:icon="@mipmap/ic_launcher" android:theme="@style/AppTheme" android:supportsRtl="true">
+        <service android:name=".NotificationBadgesService" android:label="Glyph notification badges"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" android:exported="true">
             <intent-filter><action android:name="android.service.notification.NotificationListenerService" /></intent-filter>
         </service>

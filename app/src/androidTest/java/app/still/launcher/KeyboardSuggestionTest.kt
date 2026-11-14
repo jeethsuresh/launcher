@@ -59,7 +59,7 @@ class KeyboardSuggestionTest {
             }
             if (ime == null) SystemClock.sleep(100)
         } while (ime == null && SystemClock.elapsedRealtime() < deadline)
-        try { return test(editor, ime ?: throw AssertionError("Still Keyboard must bind to the test editor")) }
+        try { return test(editor, ime ?: throw AssertionError("Glyph Keyboard must bind to the test editor")) }
         finally { instrumentation.runOnMainSync { activity.finish() } }
     }
 
@@ -157,7 +157,7 @@ class KeyboardSuggestionTest {
         instrumentation.runOnMainSync {
             val manager = instrumentation.targetContext.getSystemService(TextServicesManager::class.java)
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                assertEquals("The test must use Still's platform spellchecker",
+                assertEquals("The test must use Glyph's platform spellchecker",
                     "app.still.launcher/helium314.keyboard.latin.spellcheck.AndroidSpellCheckerService",
                     manager.currentSpellCheckerInfo?.id)
             }
@@ -166,7 +166,7 @@ class KeyboardSuggestionTest {
                     for (info in suggestions) { results[info.sequence] = info; latch.countDown() }
                 }
                 override fun onGetSentenceSuggestions(suggestions: Array<out android.view.textservice.SentenceSuggestionsInfo>) {}
-            }, false) ?: throw AssertionError("Select Still's spellchecker before this test")
+            }, false) ?: throw AssertionError("Select Glyph's spellchecker before this test")
             session.getSuggestions(words.mapIndexed { index, word -> TextInfo(word, 1, index) }.toTypedArray(), 3, false)
         }
         try {

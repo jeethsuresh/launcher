@@ -1,5 +1,5 @@
 {
-  "name": "Still Launcher",
+  "name": "Glyph",
   "kind": "gradle",
   "project_dir": ".",
   "version_file": "app/build.gradle.kts",

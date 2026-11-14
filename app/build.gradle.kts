@@ -6,9 +6,9 @@ val releaseAlias = System.getenv("RELEASE_KEY_ALIAS")
 val releaseKeyPassword = System.getenv("RELEASE_KEY_PASSWORD")
 if (gradle.startParameter.taskNames.any { it.contains("release", ignoreCase = true) }) {
     require(listOf(releaseKeystore, releaseStorePassword, releaseAlias, releaseKeyPassword).all { !it.isNullOrBlank() }) {
-        "Release signing requires the original Still Launcher key. See ANDROID_RELEASES.md."
+        "Release signing requires the original Glyph key. See ANDROID_RELEASES.md."
     }
-    require(releaseAlias == "androiddebugkey") { "Preserve Still Launcher's existing signing identity." }
+    require(releaseAlias == "androiddebugkey") { "Preserve Glyph's existing signing identity." }
 }
 
 android {
@@ -18,8 +18,8 @@ android {
         applicationId = "app.still.launcher"
         minSdk = 26
         targetSdk = 35
-        versionCode = 11
-        versionName = "0.6.1"
+        versionCode = 12
+        versionName = "0.6.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17; isCoreLibraryDesugaringEnabled = true }
