@@ -4,6 +4,12 @@
       "type": "placeholder"
     },
     {
+      "$": "keyboard_state_selector",
+      "alphabet": {
+        "label": ","
+      }
+    },
+    {
       "label": "delete",
       "width": 0.1
     }

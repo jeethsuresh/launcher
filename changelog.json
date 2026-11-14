@@ -3,6 +3,7 @@
   "version": "0.6.2",
   "versionCode": 12,
   "changes": [
-    "Still Launcher is now Glyph. The included keyboard appears as Glyph Keyboard in Android settings."
+    "Still Launcher is now Glyph. The included keyboard appears as Glyph Keyboard in Android settings.",
+    "Type a comma from the letter keyboard using the key beside Backspace. The apostrophe stays on the space-bar row."
   ]
 }

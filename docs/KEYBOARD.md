@@ -9,8 +9,8 @@ launcher. Its initial focus is English US/UK, with bundled offline dictionaries.
 
 ## Layout and gestures
 
-- Rounded light/dark keys with an apostrophe in the usual Android comma position.
-  Email and URL fields keep their useful `@` / `/` keys. Commas are on the symbols page.
+- Rounded light/dark keys with an apostrophe on the space-bar row and a comma
+  immediately to the left of Backspace. Email and URL fields keep their `@` / `/` keys.
 - Tap `?123` for symbols and numbers; hold ordinary keys for their alternate characters.
 - Swipe across letters for words. This uses Glyph's open-source path decoder,
   HeliBoard's gesture event handling, and the bundled frequency dictionary.
