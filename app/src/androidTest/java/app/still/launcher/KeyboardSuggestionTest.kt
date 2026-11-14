@@ -4,6 +4,8 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
 import android.os.SystemClock
+import android.view.InputDevice
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
@@ -15,6 +17,7 @@ import android.widget.EditText
 import android.widget.TextView
 import androidx.test.platform.app.InstrumentationRegistry
 import helium314.keyboard.keyboard.KeyboardSwitcher
+import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode
 import helium314.keyboard.latin.Dictionary
 import helium314.keyboard.latin.DictionaryFactory
 import helium314.keyboard.latin.LatinIME
@@ -61,6 +64,49 @@ class KeyboardSuggestionTest {
         } while (ime == null && SystemClock.elapsedRealtime() < deadline)
         try { return test(editor, ime ?: throw AssertionError("Glyph Keyboard must bind to the test editor")) }
         finally { instrumentation.runOnMainSync { activity.finish() } }
+    }
+
+    @Test fun commaBesideBackspaceCanBeTypedAndDeleted() = withKeyboard { editor, _ ->
+        val automation = instrumentation.uiAutomation
+        fun tapKey(code: Int) {
+            val location = IntArray(2)
+            instrumentation.runOnMainSync {
+                val view = KeyboardSwitcher.getInstance().mainKeyboardView
+                val key = view.keyboard!!.sortedKeys.first { it.code == code }
+                view.getLocationOnScreen(location)
+                location[0] += view.paddingLeft + key.x + key.width / 2
+                location[1] += view.paddingTop + key.y + key.height / 2
+            }
+            val down = SystemClock.uptimeMillis()
+            for (action in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP)) {
+                val event = MotionEvent.obtain(down, SystemClock.uptimeMillis(), action,
+                    location[0].toFloat(), location[1].toFloat(), 0)
+                event.source = InputDevice.SOURCE_TOUCHSCREEN
+                try { assertTrue(automation.injectInputEvent(event, true)) }
+                finally { event.recycle() }
+            }
+            instrumentation.waitForIdleSync()
+        }
+
+        instrumentation.runOnMainSync {
+            val keyboard = KeyboardSwitcher.getInstance().keyboard!!
+            assertTrue(keyboard.mId.isAlphabetKeyboard)
+            val keys = keyboard.sortedKeys.toList()
+            val comma = keys.single { it.code == ','.code }
+            val backspace = keys.single { it.code == KeyCode.DELETE }
+            val apostrophe = keys.single { it.code == '\''.code }
+            val space = keys.single { it.code == ' '.code }
+            assertEquals(backspace.y, comma.y)
+            assertEquals(backspace, keys.drop(keys.indexOf(comma) + 1).first { !it.isSpacer })
+            assertEquals(space.y, apostrophe.y)
+            assertTrue(apostrophe.x < space.x)
+        }
+        tapKey(','.code)
+        instrumentation.runOnMainSync { assertEquals(",", editor.text.toString()) }
+        tapKey(KeyCode.DELETE)
+        instrumentation.runOnMainSync { assertEquals("", editor.text.toString()) }
+        tapKey('\''.code)
+        instrumentation.runOnMainSync { assertEquals("'", editor.text.toString()) }
     }
 
     @Test fun commonTyposHaveUsefulDictionarySuggestions() = withKeyboard { _, _ ->
