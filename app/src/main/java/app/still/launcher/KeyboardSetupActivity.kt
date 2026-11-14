@@ -44,7 +44,7 @@ class KeyboardSetupActivity : Activity() {
                 setOnClickListener { action() }
             }, LinearLayout.LayoutParams(-1, dp(54)).apply { bottomMargin = dp(8) })
         }
-        text("Still Keyboard", 30f, true)
+        text("Glyph Keyboard", 30f, true)
         text("A familiar keyboard, built on HeliBoard. Rounded keys, an apostrophe beside the space bar, swipe typing, and emoji search.", 16f)
         text("Try it here", 20f, true)
         val editor = EditText(this).apply {
@@ -57,8 +57,8 @@ class KeyboardSetupActivity : Activity() {
             setPadding(dp(12), dp(12), dp(12), dp(12))
         }
         content.addView(editor, LinearLayout.LayoutParams(-1, dp(110)))
-        button("1 · Enable Still Keyboard") { startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)) }
-        button("2 · Choose Still Keyboard") { getSystemService(InputMethodManager::class.java).showInputMethodPicker() }
+        button("1 · Enable Glyph Keyboard") { startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)) }
+        button("2 · Choose Glyph Keyboard") { getSystemService(InputMethodManager::class.java).showInputMethodPicker() }
         button("Keyboard settings") { startActivity(Intent(this, helium314.keyboard.settings.SettingsActivity::class.java)) }
         button("Toolbar setup") {
             startActivity(Intent(this, helium314.keyboard.settings.SettingsActivity::class.java).putExtra("still_settings_destination", "toolbar"))
@@ -80,7 +80,7 @@ class KeyboardSetupActivity : Activity() {
         }
         content.addView(clipboardCodeButton, LinearLayout.LayoutParams(-1, dp(54)))
         text("Clipboard code suggestions are separate from clipboard history and general paste suggestions. You can turn them off here.", 14f)
-        text("Text-message codes are optional. Enable SMS access to suggest 4–8 character codes from newly received texts. Still keeps only the codes in memory for 30 seconds; it does not read your inbox or save messages. Some Android installers restrict SMS permission.", 14f)
+        text("Text-message codes are optional. Enable SMS access to suggest 4–8 character codes from newly received texts. Glyph keeps only the codes in memory for 30 seconds; it does not read your inbox or save messages. Some Android installers restrict SMS permission.", 14f)
         smsButton = Button(this).apply {
             isAllCaps = false
             setOnClickListener {

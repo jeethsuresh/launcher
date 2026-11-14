@@ -1,6 +1,6 @@
 # Source and license notices
 
-Still Launcher and its integrated keyboard are distributed under GPL-3.0-only.
+Glyph (formerly Still Launcher) and its integrated keyboard are distributed under GPL-3.0-only.
 See `LICENSE`. Existing third-party notices and their applicable licenses are
 retained in the vendored source; the GPL does not replace those notices.
 

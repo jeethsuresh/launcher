@@ -1,9 +1,8 @@
 {
   "schemaVersion": 1,
-  "version": "0.6.1",
-  "versionCode": 11,
+  "version": "0.6.2",
+  "versionCode": 12,
   "changes": [
-    "Swipe inward from the left edge to go back and from the right edge to go forward on Android 14 and later.",
-    "Return to previous browsing destinations without repeating actions; opening a new destination clears forward history."
+    "Still Launcher is now Glyph. The included keyboard appears as Glyph Keyboard in Android settings."
   ]
 }

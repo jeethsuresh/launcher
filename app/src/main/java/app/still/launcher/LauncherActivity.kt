@@ -986,7 +986,7 @@ class LauncherActivity : Activity() {
         val isDefault = if (Build.VERSION.SDK_INT >= 29) getSystemService(RoleManager::class.java).isRoleHeld(RoleManager.ROLE_HOME) else false
         val defaultCard = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(18), dp(18), dp(18)); background = rounded(if (light) 0xffd7e8d7.toInt() else 0xff2b4133.toInt(), dp(22).toFloat()) }
         defaultCard.addView(label(if (isDefault) "A place to come home to." else "Make yourself at home.", 17f, ink, true))
-        defaultCard.addView(label(if (isDefault) "Still is your default launcher." else "Set Still as your default home app.", 13f, muted), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8); bottomMargin = dp(16) })
+        defaultCard.addView(label(if (isDefault) "Glyph is your default launcher." else "Set Glyph as your default home app.", 13f, muted), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8); bottomMargin = dp(16) })
         defaultCard.addView(pill(if (isDefault) "Manage default launcher" else "Set as default", accent, if (light) Color.WHITE else 0xff193625.toInt()) { requestHome() }, LinearLayout.LayoutParams(-1, dp(46)))
         content.addView(defaultCard, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(26) })
         section(content, "LAYOUT")
@@ -996,7 +996,7 @@ class LauncherActivity : Activity() {
         settingsRow(content, "Hidden apps", "${store.hiddenApps.size} hidden · Choose what appears in All apps", "grid") { manageHiddenApps() }
         settingsRow(content, "Notification badges", if (NotificationBadges.hasAccess(this)) "Numbered badges · Manage access in Android settings" else "Off · Allow notification access to show counts on apps", "settings") {
             showDialog(dialogBuilder().setTitle("Notification badges")
-                .setMessage("Show numbered badges on apps and folders with active notifications. Counts use app-provided totals when available. Android requires notification access, which can expose notification content. Still uses only the app, profile, numeric count, and badge eligibility; notification content is never stored or sent. You can turn access off at any time in Android settings.")
+                .setMessage("Show numbered badges on apps and folders with active notifications. Counts use app-provided totals when available. Android requires notification access, which can expose notification content. Glyph uses only the app, profile, numeric count, and badge eligibility; notification content is never stored or sent. You can turn access off at any time in Android settings.")
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Open Android settings") { _, _ ->
                     safeStart(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS), "Notification access settings are unavailable.")
@@ -1019,7 +1019,7 @@ class LauncherActivity : Activity() {
         settingsRow(content, "Arrange home screen", "Drag icons. Tap items for more options.", "grid") { if (!store.settings.locked) { closePanel(); setEditing(true) } else message("Unlock the layout first.") }
         settingsRow(content, "Manage pages", "${store.pages} home ${if (store.pages == 1) "page" else "pages"}", "home") { pageManager() }
         section(content, "KEYBOARD")
-        settingsRow(content, "Still Keyboard", "Swipe typing, emoji search, and held toolbar controls", "settings") {
+        settingsRow(content, "Glyph Keyboard", "Swipe typing, emoji search, and held toolbar controls", "settings") {
             startActivity(Intent(this, KeyboardSetupActivity::class.java))
         }
         section(content, "STILL LAUNCHER")
