@@ -74,8 +74,8 @@ Run `./gradlew :app:testDebugUnitTest :keyboard:testDebugUnitTest :app:lintDebug
 For continuous touch integration tests, select Glyph Keyboard on an emulator first:
 
 ```sh
-adb shell ime enable app.still.launcher/helium314.keyboard.latin.LatinIME
-adb shell ime set app.still.launcher/helium314.keyboard.latin.LatinIME
+adb shell ime enable cool.gravitas.glyph/helium314.keyboard.latin.LatinIME
+adb shell ime set cool.gravitas.glyph/helium314.keyboard.latin.LatinIME
 adb shell settings put secure show_ime_with_hard_keyboard 1
 ./gradlew :app:connectedDebugAndroidTest
 ```

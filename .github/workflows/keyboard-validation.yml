@@ -34,6 +34,8 @@ jobs:
         env:
           ANDROID_AVD_HOME: ${{ runner.temp }}/still-test-avd
         run: |
+          app_id="$(jq -er '.package' android-release.json)"
+          ime="$app_id/helium314.keyboard.latin.LatinIME"
           sudo chmod a+rw /dev/kvm
           mkdir -p "$ANDROID_AVD_HOME"
           echo no | avdmanager create avd --force -n still_test -k 'system-images;android-35;google_apis;x86_64' --device pixel_2
@@ -56,15 +58,15 @@ jobs:
           adb shell settings put global animator_duration_scale 0
           adb install -r app/build/outputs/apk/debug/app-debug.apk
           for attempt in $(seq 1 30); do
-            if adb shell ime list -s | tr -d '\r' | grep -Fxq 'app.still.launcher/helium314.keyboard.latin.LatinIME'; then break; fi
+            if adb shell ime list -s | tr -d '\r' | grep -Fxq "$ime"; then break; fi
             sleep 1
           done
-          adb shell ime enable app.still.launcher/helium314.keyboard.latin.LatinIME
-          adb shell ime set app.still.launcher/helium314.keyboard.latin.LatinIME
+          adb shell ime enable "$ime"
+          adb shell ime set "$ime"
           adb shell settings put secure show_ime_with_hard_keyboard 1
-          test "$(adb shell settings get secure default_input_method | tr -d '\r')" = 'app.still.launcher/helium314.keyboard.latin.LatinIME'
+          test "$(adb shell settings get secure default_input_method | tr -d '\r')" = "$ime"
           adb shell settings put secure spell_checker_enabled 1
-          adb shell settings put secure selected_spell_checker app.still.launcher/helium314.keyboard.latin.spellcheck.AndroidSpellCheckerService
+          adb shell settings put secure selected_spell_checker "$app_id/helium314.keyboard.latin.spellcheck.AndroidSpellCheckerService"
       - name: Real dictionary and code suggestion regressions
         run: ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.still.launcher.KeyboardSuggestionTest
       - name: Notification badges across launcher surfaces and Android access changes

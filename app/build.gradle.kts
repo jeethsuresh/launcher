@@ -15,7 +15,7 @@ android {
     namespace = "app.still.launcher"
     compileSdk = 35
     defaultConfig {
-        applicationId = "app.still.launcher"
+        applicationId = "cool.gravitas.glyph"
         minSdk = 26
         targetSdk = 35
         versionCode = 12

@@ -10,7 +10,9 @@ The workflow can also run manually from `main`. Leave **publish_release** enable
 
 Every release includes the signed APK, `SHA256SUMS`, and `release-manifest.json` with the source commit, package, version/code, certificate and APK digest. GitHub's uploaded asset digests and sizes must match before the draft is published. `android-release.json` pins the app identity; the workflow pins its build tools and GitHub actions.
 
-Package: `app.still.launcher`. Permanent certificate SHA-256: `508184332d54eadbf5ad558c0b00c8350769cb386130c68eeec4aa8bf47c8b09`.
+Glyph 0.6.2 uses the Android package `cool.gravitas.glyph`. Android installs it separately from `app.still.launcher`. Set Glyph as your home app again and re-enable Glyph Keyboard if you use it. Layout and settings from the previous install stay in that install.
+
+The permanent certificate is unchanged. Its SHA-256 fingerprint is `508184332d54eadbf5ad558c0b00c8350769cb386130c68eeec4aa8bf47c8b09`. The release workflow requires the Android Developer Console to confirm registration of the new package with that certificate before publishing.
 
 ## Required changelog
 

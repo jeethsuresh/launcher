@@ -16,7 +16,7 @@ Open this directory in Android Studio, or use a JDK 17+, Android SDK 35, and NDK
 ./gradlew assembleDebug
 ./gradlew testDebugUnitTest lintDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
-adb shell am start -n app.still.launcher/.LauncherActivity
+adb shell am start -n cool.gravitas.glyph/app.still.launcher.LauncherActivity
 ```
 
 On this Mac, Android Studio's bundled Java works:

@@ -2,6 +2,7 @@ package app.still.launcher
 
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.ComponentName
 import android.content.Intent
 import android.os.SystemClock
 import android.view.InputDevice
@@ -35,6 +36,20 @@ import java.util.concurrent.ConcurrentHashMap
 /** Runs against the packaged native dictionaries, real IME connection and rendered code row. */
 class KeyboardSuggestionTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
+
+    @Test fun systemKeyboardSettingsOpenGlyph() {
+        val context = instrumentation.targetContext
+        val packageName = "cool.gravitas.glyph"
+        assertEquals(packageName, context.packageName)
+        val inputMethod = context.getSystemService(InputMethodManager::class.java)
+            .inputMethodList.single { it.packageName == packageName }
+        val settings = ComponentName(inputMethod.packageName, inputMethod.settingsActivity)
+        assertEquals(ComponentName(context, KeyboardSetupActivity::class.java), settings)
+        val activity = instrumentation.startActivitySync(Intent().setComponent(settings)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        try { assertTrue(activity is KeyboardSetupActivity) }
+        finally { instrumentation.runOnMainSync { activity.finish() } }
+    }
 
     private fun <T> withKeyboard(test: (EditText, LatinIME) -> T): T {
         val activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, KeyboardSetupActivity::class.java)
@@ -204,7 +219,7 @@ class KeyboardSuggestionTest {
             val manager = instrumentation.targetContext.getSystemService(TextServicesManager::class.java)
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
                 assertEquals("The test must use Glyph's platform spellchecker",
-                    "app.still.launcher/helium314.keyboard.latin.spellcheck.AndroidSpellCheckerService",
+                    "${instrumentation.targetContext.packageName}/helium314.keyboard.latin.spellcheck.AndroidSpellCheckerService",
                     manager.currentSpellCheckerInfo?.id)
             }
             session = manager.newSpellCheckerSession(null, Locale.US, object : SpellCheckerSession.SpellCheckerSessionListener {
