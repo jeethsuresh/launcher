@@ -3,7 +3,7 @@
   "kind": "gradle",
   "project_dir": ".",
   "version_file": "app/build.gradle.kts",
-  "package": "app.still.launcher",
+  "package": "cool.gravitas.glyph",
   "min_sdk": 26,
   "key_alias": "androiddebugkey",
   "certificate_sha256": "508184332d54eadbf5ad558c0b00c8350769cb386130c68eeec4aa8bf47c8b09",

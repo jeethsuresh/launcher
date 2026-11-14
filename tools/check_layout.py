@@ -6,12 +6,14 @@ import os
 import shutil
 import subprocess
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--serial', required=True, help='Explicit adb device serial')
 parser.add_argument('--adb', default=shutil.which('adb') or os.path.expanduser('~/Library/Android/sdk/platform-tools/adb'))
 args = parser.parse_args()
-xml = subprocess.check_output([args.adb, '-s', args.serial, 'shell', 'run-as', 'app.still.launcher', 'cat', 'shared_prefs/still_launcher_v1.xml'], text=True, timeout=10)
+package = json.loads(Path(__file__).resolve().parents[1].joinpath('android-release.json').read_text())['package']
+xml = subprocess.check_output([args.adb, '-s', args.serial, 'shell', 'run-as', package, 'cat', 'shared_prefs/still_launcher_v1.xml'], text=True, timeout=10)
 values = {node.attrib['name']: node.text for node in ET.fromstring(xml) if node.tag == 'string'}
 settings = json.loads(values['settings'])
 items = json.loads(values['items'])
