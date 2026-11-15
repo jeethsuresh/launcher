@@ -241,18 +241,12 @@ class KeyboardParser(private val params: KeyboardParams, private val context: Co
             )
             baseKeys.removeAt(baseKeys.lastIndex)
         }
-        // Keep layout-specific replacements (such as < on shifted symbols), but drop the
-        // fallback bottom-row comma when the functional layout puts it in another row.
-        if (!params.mId.isAlphabetKeyboard &&
-                allFunctionalKeys.dropLast(1).any { row -> row.any { it.label == KeyLabel.COMMA } }) {
-            functionalKeysBottom.removeAll { it.label == KeyLabel.COMMA }
-        }
         // add zwnj key next to space if necessary
         val spaceIndex = functionalKeysBottom.indexOfFirst { it.label == KeyLabel.SPACE && it.width <= 0 } // width could be 0 or -1
-        if (spaceIndex >= 0) {
-            if (params.mLocaleKeyboardInfos.hasZwnjKey && params.mId.isAlphabetKeyboard) {
-                functionalKeysBottom.add(spaceIndex + 1, TextKeyData(label = KeyLabel.ZWNJ))
-            }
+        if (spaceIndex >= 0 && params.mLocaleKeyboardInfos.hasZwnjKey && params.mId.isAlphabetKeyboard) {
+            // Keep a comma placed after the spacebar next to it.
+            val index = if (functionalKeysBottom.getOrNull(spaceIndex + 1)?.label == ",") spaceIndex else spaceIndex + 1
+            functionalKeysBottom.add(index, TextKeyData(label = KeyLabel.ZWNJ))
         }
         baseKeys.add(mutableListOf())
     }

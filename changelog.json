@@ -1,8 +1,9 @@
 {
   "schemaVersion": 1,
-  "version": "0.6.3",
-  "versionCode": 13,
+  "version": "0.6.4",
+  "versionCode": 14,
   "changes": [
-    "The comma is beside the spacebar on the letter keyboard and beside Backspace on both symbols pages."
+    "The comma sits between the spacebar and full stop on letters and both symbols pages.",
+    "Both symbols pages now have an apostrophe immediately to the left of the spacebar."
   ]
 }
