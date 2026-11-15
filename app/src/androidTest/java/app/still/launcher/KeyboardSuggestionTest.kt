@@ -17,6 +17,7 @@ import android.view.textservice.SpellCheckerSession
 import android.widget.EditText
 import android.widget.TextView
 import androidx.test.platform.app.InstrumentationRegistry
+import helium314.keyboard.keyboard.KeyboardId
 import helium314.keyboard.keyboard.KeyboardSwitcher
 import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode
 import helium314.keyboard.latin.Dictionary
@@ -81,7 +82,7 @@ class KeyboardSuggestionTest {
         finally { instrumentation.runOnMainSync { activity.finish() } }
     }
 
-    @Test fun commaBesideBackspaceCanBeTypedAndDeleted() = withKeyboard { editor, _ ->
+    @Test fun commaMovesBetweenLettersAndSymbols() = withKeyboard { editor, _ ->
         val automation = instrumentation.uiAutomation
         fun tapKey(code: Int) {
             val location = IntArray(2)
@@ -103,25 +104,53 @@ class KeyboardSuggestionTest {
             instrumentation.waitForIdleSync()
         }
 
+        fun assertCommaBefore(neighbor: Int) {
+            val keys = KeyboardSwitcher.getInstance().keyboard!!.sortedKeys.filter { !it.isSpacer }
+            val comma = keys.single { it.code == ','.code }
+            val next = keys[keys.indexOf(comma) + 1]
+            assertEquals(comma.y, next.y)
+            assertEquals(neighbor, next.code)
+        }
+
+        fun typeAndDeleteComma() {
+            tapKey(','.code)
+            instrumentation.runOnMainSync { assertEquals(",", editor.text.toString()) }
+            tapKey(KeyCode.DELETE)
+            instrumentation.runOnMainSync { assertEquals("", editor.text.toString()) }
+        }
+
         instrumentation.runOnMainSync {
             val keyboard = KeyboardSwitcher.getInstance().keyboard!!
             assertTrue(keyboard.mId.isAlphabetKeyboard)
-            val keys = keyboard.sortedKeys.toList()
-            val comma = keys.single { it.code == ','.code }
-            val backspace = keys.single { it.code == KeyCode.DELETE }
-            val apostrophe = keys.single { it.code == '\''.code }
-            val space = keys.single { it.code == ' '.code }
-            assertEquals(backspace.y, comma.y)
-            assertEquals(backspace, keys.drop(keys.indexOf(comma) + 1).first { !it.isSpacer })
+            assertCommaBefore(' '.code)
+            val apostrophe = keyboard.sortedKeys.single { it.code == '\''.code }
+            val space = keyboard.sortedKeys.single { it.code == ' '.code }
             assertEquals(space.y, apostrophe.y)
             assertTrue(apostrophe.x < space.x)
         }
-        tapKey(','.code)
-        instrumentation.runOnMainSync { assertEquals(",", editor.text.toString()) }
-        tapKey(KeyCode.DELETE)
-        instrumentation.runOnMainSync { assertEquals("", editor.text.toString()) }
+        typeAndDeleteComma()
         tapKey('\''.code)
         instrumentation.runOnMainSync { assertEquals("'", editor.text.toString()) }
+        tapKey(KeyCode.DELETE)
+
+        tapKey(KeyCode.SYMBOL_ALPHA)
+        instrumentation.runOnMainSync {
+            assertEquals(KeyboardId.ELEMENT_SYMBOLS, KeyboardSwitcher.getInstance().keyboard!!.mId.mElementId)
+            assertCommaBefore(KeyCode.DELETE)
+        }
+        typeAndDeleteComma()
+
+        tapKey(KeyCode.SHIFT)
+        instrumentation.runOnMainSync {
+            val keyboard = KeyboardSwitcher.getInstance().keyboard!!
+            assertEquals(KeyboardId.ELEMENT_SYMBOLS_SHIFTED, keyboard.mId.mElementId)
+            assertCommaBefore(KeyCode.DELETE)
+            val space = keyboard.sortedKeys.single { it.code == ' '.code }
+            for (symbol in "<>") {
+                assertTrue(keyboard.sortedKeys.any { it.code == symbol.code && it.y == space.y })
+            }
+        }
+        typeAndDeleteComma()
     }
 
     @Test fun commonTyposHaveUsefulDictionarySuggestions() = withKeyboard { _, _ ->

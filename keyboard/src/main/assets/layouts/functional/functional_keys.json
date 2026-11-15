@@ -9,8 +9,11 @@
     },
     {
       "$": "keyboard_state_selector",
-      "alphabet": {
-        "label": ","
+      "symbols": {
+        "label": "comma"
+      },
+      "moreSymbols": {
+        "label": "comma"
       }
     },
     {
@@ -69,6 +72,12 @@
       "$": "keyboard_state_selector",
       "symbols": {
         "label": "numpad"
+      }
+    },
+    {
+      "$": "keyboard_state_selector",
+      "alphabet": {
+        "label": ","
       }
     },
     {

@@ -9,8 +9,9 @@ launcher. Its initial focus is English US/UK, with bundled offline dictionaries.
 
 ## Layout and gestures
 
-- Rounded light/dark keys with an apostrophe on the space-bar row and a comma
-  immediately to the left of Backspace. Email and URL fields keep their `@` / `/` keys.
+- On the letter layout, the comma sits immediately to the left of the spacebar,
+  and the apostrophe stays on the bottom row. On both symbols pages, the comma
+  sits immediately to the left of Backspace. Email and URL fields keep their `@` / `/` keys.
 - Tap `?123` for symbols and numbers; hold ordinary keys for their alternate characters.
 - Swipe across letters for words. This uses Glyph's open-source path decoder,
   HeliBoard's gesture event handling, and the bundled frequency dictionary.
