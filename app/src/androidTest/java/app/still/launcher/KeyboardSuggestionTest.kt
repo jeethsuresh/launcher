@@ -82,7 +82,7 @@ class KeyboardSuggestionTest {
         finally { instrumentation.runOnMainSync { activity.finish() } }
     }
 
-    @Test fun commaMovesBetweenLettersAndSymbols() = withKeyboard { editor, _ ->
+    @Test fun punctuationStaysBesideSpaceAcrossLettersAndSymbols() = withKeyboard { editor, _ ->
         val automation = instrumentation.uiAutomation
         fun tapKey(code: Int) {
             val location = IntArray(2)
@@ -104,17 +104,22 @@ class KeyboardSuggestionTest {
             instrumentation.waitForIdleSync()
         }
 
-        fun assertCommaBefore(neighbor: Int) {
+        fun assertPunctuationRow(apostropheBesideSpace: Boolean) {
             val keys = KeyboardSwitcher.getInstance().keyboard!!.sortedKeys.filter { !it.isSpacer }
-            val comma = keys.single { it.code == ','.code }
-            val next = keys[keys.indexOf(comma) + 1]
-            assertEquals(comma.y, next.y)
-            assertEquals(neighbor, next.code)
+            val space = keys.single { it.code == ' '.code }
+            val apostrophe = keys.single { it.code == '\''.code }
+            val row = keys.filter { it.y == space.y }
+            val spaceIndex = row.indexOf(space)
+            assertEquals(1, keys.count { it.code == ','.code })
+            assertEquals(listOf(','.code, '.'.code), row.drop(spaceIndex + 1).take(2).map { it.code })
+            assertEquals(space.y, apostrophe.y)
+            assertTrue(apostrophe.x < space.x)
+            if (apostropheBesideSpace) assertEquals(apostrophe, row[spaceIndex - 1])
         }
 
-        fun typeAndDeleteComma() {
-            tapKey(','.code)
-            instrumentation.runOnMainSync { assertEquals(",", editor.text.toString()) }
+        fun typeAndDelete(symbol: Char) {
+            tapKey(symbol.code)
+            instrumentation.runOnMainSync { assertEquals(symbol.toString(), editor.text.toString()) }
             tapKey(KeyCode.DELETE)
             instrumentation.runOnMainSync { assertEquals("", editor.text.toString()) }
         }
@@ -122,35 +127,30 @@ class KeyboardSuggestionTest {
         instrumentation.runOnMainSync {
             val keyboard = KeyboardSwitcher.getInstance().keyboard!!
             assertTrue(keyboard.mId.isAlphabetKeyboard)
-            assertCommaBefore(' '.code)
-            val apostrophe = keyboard.sortedKeys.single { it.code == '\''.code }
-            val space = keyboard.sortedKeys.single { it.code == ' '.code }
-            assertEquals(space.y, apostrophe.y)
-            assertTrue(apostrophe.x < space.x)
+            assertPunctuationRow(apostropheBesideSpace = false)
         }
-        typeAndDeleteComma()
-        tapKey('\''.code)
-        instrumentation.runOnMainSync { assertEquals("'", editor.text.toString()) }
-        tapKey(KeyCode.DELETE)
+        typeAndDelete(',')
+        typeAndDelete('\'')
 
         tapKey(KeyCode.SYMBOL_ALPHA)
         instrumentation.runOnMainSync {
             assertEquals(KeyboardId.ELEMENT_SYMBOLS, KeyboardSwitcher.getInstance().keyboard!!.mId.mElementId)
-            assertCommaBefore(KeyCode.DELETE)
+            assertPunctuationRow(apostropheBesideSpace = true)
         }
-        typeAndDeleteComma()
+        typeAndDelete(',')
+        typeAndDelete('\'')
 
         tapKey(KeyCode.SHIFT)
         instrumentation.runOnMainSync {
             val keyboard = KeyboardSwitcher.getInstance().keyboard!!
             assertEquals(KeyboardId.ELEMENT_SYMBOLS_SHIFTED, keyboard.mId.mElementId)
-            assertCommaBefore(KeyCode.DELETE)
-            val space = keyboard.sortedKeys.single { it.code == ' '.code }
+            assertPunctuationRow(apostropheBesideSpace = true)
             for (symbol in "<>") {
-                assertTrue(keyboard.sortedKeys.any { it.code == symbol.code && it.y == space.y })
+                assertTrue(keyboard.sortedKeys.any { it.code == symbol.code })
             }
         }
-        typeAndDeleteComma()
+        typeAndDelete(',')
+        typeAndDelete('\'')
     }
 
     @Test fun commonTyposHaveUsefulDictionarySuggestions() = withKeyboard { _, _ ->

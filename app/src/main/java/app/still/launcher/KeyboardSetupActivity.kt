@@ -45,7 +45,7 @@ class KeyboardSetupActivity : Activity() {
             }, LinearLayout.LayoutParams(-1, dp(54)).apply { bottomMargin = dp(8) })
         }
         text("Glyph Keyboard", 30f, true)
-        text("A familiar keyboard, built on HeliBoard. Rounded keys, an apostrophe beside the space bar, swipe typing, and emoji search.", 16f)
+        text("A familiar keyboard, built on HeliBoard. Rounded keys, dedicated comma and apostrophe keys, swipe typing, and emoji search.", 16f)
         text("Try it here", 20f, true)
         val editor = EditText(this).apply {
             hint = "Type or swipe a few words…"

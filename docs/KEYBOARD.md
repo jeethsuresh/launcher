@@ -9,9 +9,9 @@ launcher. Its initial focus is English US/UK, with bundled offline dictionaries.
 
 ## Layout and gestures
 
-- On the letter layout, the comma sits immediately to the left of the spacebar,
-  and the apostrophe stays on the bottom row. On both symbols pages, the comma
-  sits immediately to the left of Backspace. Email and URL fields keep their `@` / `/` keys.
+- On letters and both symbols pages, the comma sits between the spacebar and
+  full stop, and the apostrophe is on the left side of the spacebar.
+  Email and URL fields keep their `@` / `/` shortcuts.
 - Tap `?123` for symbols and numbers; hold ordinary keys for their alternate characters.
 - Swipe across letters for words. This uses Glyph's open-source path decoder,
   HeliBoard's gesture event handling, and the bundled frequency dictionary.

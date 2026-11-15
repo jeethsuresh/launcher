@@ -4,15 +4,6 @@
       "type": "placeholder"
     },
     {
-      "$": "keyboard_state_selector",
-      "symbols": {
-        "label": "comma"
-      },
-      "moreSymbols": {
-        "label": "comma"
-      }
-    },
-    {
       "label": "delete",
       "width": 0.1
     }
@@ -55,9 +46,6 @@
           "label": "'",
           "code": 39,
           "groupId": 1
-        },
-        "default": {
-          "label": "comma"
         }
       },
       "email": {
@@ -88,12 +76,22 @@
     },
     {
       "$": "keyboard_state_selector",
-      "alphabet": {
-        "label": ","
+      "symbols": {
+        "label": "'",
+        "code": 39,
+        "groupId": 1
+      },
+      "moreSymbols": {
+        "label": "'",
+        "code": 39,
+        "groupId": 1
       }
     },
     {
       "label": "space"
+    },
+    {
+      "label": ","
     },
     {
       "label": "period"
