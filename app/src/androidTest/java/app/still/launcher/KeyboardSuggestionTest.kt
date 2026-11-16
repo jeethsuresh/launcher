@@ -10,6 +10,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
+import android.view.inputmethod.InputMethodSubtype.InputMethodSubtypeBuilder
 import android.view.textservice.SuggestionsInfo
 import android.view.textservice.TextInfo
 import android.view.textservice.TextServicesManager
@@ -17,13 +18,16 @@ import android.view.textservice.SpellCheckerSession
 import android.widget.EditText
 import android.widget.TextView
 import androidx.test.platform.app.InstrumentationRegistry
+import helium314.keyboard.keyboard.Keyboard
 import helium314.keyboard.keyboard.KeyboardId
+import helium314.keyboard.keyboard.KeyboardLayoutSet
 import helium314.keyboard.keyboard.KeyboardSwitcher
 import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode
 import helium314.keyboard.latin.Dictionary
 import helium314.keyboard.latin.DictionaryFactory
 import helium314.keyboard.latin.LatinIME
 import helium314.keyboard.latin.NgramContext
+import helium314.keyboard.latin.RichInputMethodSubtype
 import helium314.keyboard.latin.WordComposer
 import helium314.keyboard.latin.common.StringUtils
 import helium314.keyboard.latin.settings.SettingsValuesForSuggestion
@@ -82,7 +86,22 @@ class KeyboardSuggestionTest {
         finally { instrumentation.runOnMainSync { activity.finish() } }
     }
 
-    @Test fun punctuationStaysBesideSpaceAcrossLettersAndSymbols() = withKeyboard { editor, _ ->
+    private fun assertCommaBeforeBackspace(keyboard: Keyboard, question: Char) {
+        val keys = keyboard.sortedKeys.filter { !it.isSpacer }
+        val comma = keys.single { it.code == ','.code }
+        val row = keys.filter { it.y == comma.y }.sortedBy { it.x }
+        val index = row.indexOf(comma)
+        assertEquals(question.code, row[index - 1].code)
+        assertEquals(KeyCode.DELETE, row[index + 1].code)
+    }
+
+    private fun assertNoComma(keyboard: Keyboard) {
+        assertTrue(keyboard.sortedKeys.none { key ->
+            key.code == ','.code || key.popupKeys.orEmpty().any { it.mCode == ','.code }
+        })
+    }
+
+    @Test fun commaIsOnlyBetweenQuestionAndBackspaceOnSymbols() = withKeyboard { editor, _ ->
         val automation = instrumentation.uiAutomation
         fun tapKey(code: Int) {
             val location = IntArray(2)
@@ -104,14 +123,13 @@ class KeyboardSuggestionTest {
             instrumentation.waitForIdleSync()
         }
 
-        fun assertPunctuationRow(apostropheBesideSpace: Boolean) {
+        fun assertSpacebarRow(apostropheBesideSpace: Boolean) {
             val keys = KeyboardSwitcher.getInstance().keyboard!!.sortedKeys.filter { !it.isSpacer }
             val space = keys.single { it.code == ' '.code }
             val apostrophe = keys.single { it.code == '\''.code }
             val row = keys.filter { it.y == space.y }
             val spaceIndex = row.indexOf(space)
-            assertEquals(1, keys.count { it.code == ','.code })
-            assertEquals(listOf(','.code, '.'.code), row.drop(spaceIndex + 1).take(2).map { it.code })
+            assertEquals('.'.code, row[spaceIndex + 1].code)
             assertEquals(space.y, apostrophe.y)
             assertTrue(apostrophe.x < space.x)
             if (apostropheBesideSpace) assertEquals(apostrophe, row[spaceIndex - 1])
@@ -127,16 +145,19 @@ class KeyboardSuggestionTest {
         instrumentation.runOnMainSync {
             val keyboard = KeyboardSwitcher.getInstance().keyboard!!
             assertTrue(keyboard.mId.isAlphabetKeyboard)
-            assertPunctuationRow(apostropheBesideSpace = false)
+            assertNoComma(keyboard)
+            assertSpacebarRow(apostropheBesideSpace = false)
         }
-        typeAndDelete(',')
         typeAndDelete('\'')
 
         tapKey(KeyCode.SYMBOL_ALPHA)
         instrumentation.runOnMainSync {
-            assertEquals(KeyboardId.ELEMENT_SYMBOLS, KeyboardSwitcher.getInstance().keyboard!!.mId.mElementId)
-            assertPunctuationRow(apostropheBesideSpace = true)
+            val keyboard = KeyboardSwitcher.getInstance().keyboard!!
+            assertEquals(KeyboardId.ELEMENT_SYMBOLS, keyboard.mId.mElementId)
+            assertCommaBeforeBackspace(keyboard, '?')
+            assertSpacebarRow(apostropheBesideSpace = true)
         }
+        typeAndDelete('?')
         typeAndDelete(',')
         typeAndDelete('\'')
 
@@ -144,13 +165,36 @@ class KeyboardSuggestionTest {
         instrumentation.runOnMainSync {
             val keyboard = KeyboardSwitcher.getInstance().keyboard!!
             assertEquals(KeyboardId.ELEMENT_SYMBOLS_SHIFTED, keyboard.mId.mElementId)
-            assertPunctuationRow(apostropheBesideSpace = true)
+            assertNoComma(keyboard)
+            assertSpacebarRow(apostropheBesideSpace = true)
             for (symbol in "<>") {
                 assertTrue(keyboard.sortedKeys.any { it.code == symbol.code })
             }
         }
-        typeAndDelete(',')
         typeAndDelete('\'')
+    }
+
+    @Test fun tabletSymbolsPlaceCommaAfterTheLocalQuestionMark() = withKeyboard { _, ime ->
+        instrumentation.runOnMainSync {
+            for ((language, mainLayout, question) in listOf(
+                Triple("en-US", "MAIN:dvorak", '?'),
+                Triple("ar", "MAIN:arabic|SYMBOLS:symbols_arabic", '؟'),
+            )) {
+                val subtype = RichInputMethodSubtype.get(InputMethodSubtypeBuilder()
+                    .setLanguageTag(language)
+                    .setSubtypeMode("keyboard")
+                    .setSubtypeExtraValue("KeyboardLayoutSet=$mainLayout|FUNCTIONAL:functional_keys_tablet")
+                    .build())
+                val layouts = KeyboardLayoutSet.Builder(ime, ime.currentInputEditorInfo)
+                    .setSubtype(subtype)
+                    .setKeyboardGeometry(1200, 420)
+                    .setNumberRowEnabled(true)
+                    .build()
+                assertNoComma(layouts.getKeyboard(KeyboardId.ELEMENT_ALPHABET))
+                assertCommaBeforeBackspace(layouts.getKeyboard(KeyboardId.ELEMENT_SYMBOLS), question)
+                assertNoComma(layouts.getKeyboard(KeyboardId.ELEMENT_SYMBOLS_SHIFTED))
+            }
+        }
     }
 
     @Test fun commonTyposHaveUsefulDictionarySuggestions() = withKeyboard { _, _ ->

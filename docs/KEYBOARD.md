@@ -9,8 +9,8 @@ launcher. Its initial focus is English US/UK, with bundled offline dictionaries.
 
 ## Layout and gestures
 
-- On letters and both symbols pages, the comma sits between the spacebar and
-  full stop, and the apostrophe is on the left side of the spacebar.
+- The comma is only on the first symbols page, between the question mark and
+  Backspace. The apostrophe is on the left side of the spacebar on letters and symbols.
   Email and URL fields keep their `@` / `/` shortcuts.
 - Tap `?123` for symbols and numbers; hold ordinary keys for their alternate characters.
 - Swipe across letters for words. This uses Glyph's open-source path decoder,
