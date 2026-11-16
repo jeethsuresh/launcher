@@ -159,6 +159,7 @@ class KeyboardParser(private val params: KeyboardParams, private val context: Co
         // Tablet Backspace is on a different row. Move the existing question key,
         // including its locale and popups, so the three keys always stay together.
         val symbolsRow = baseKeys.lastOrNull { it.isNotEmpty() } ?: return
+        if (symbolsRow.size == 1) return
         val question = symbolsRow.last()
         if (question.label != "?" && question.label != "؟") return
         symbolsRow.removeAt(symbolsRow.lastIndex)
