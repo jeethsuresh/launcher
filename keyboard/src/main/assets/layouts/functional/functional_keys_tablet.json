@@ -4,6 +4,12 @@
       "type": "placeholder"
     },
     {
+      "$": "keyboard_state_selector",
+      "symbols": {
+        "label": ","
+      }
+    },
+    {
       "label": "delete",
       "width": 0.1
     }
@@ -89,9 +95,6 @@
     },
     {
       "label": "space"
-    },
-    {
-      "label": ","
     },
     {
       "label": "period"

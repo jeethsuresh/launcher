@@ -36,7 +36,13 @@ fun createPopupKeysArray(popupSet: PopupSet<*>?, params: KeyboardParams, label: 
             POPUP_KEYS_LANGUAGE_PRIORITY -> params.mLocaleKeyboardInfos.getPriorityPopupKeys(label)?.let { popupKeys.addAll(it) }
         }
     }
-    if (!popupKeysDelegate.isInitialized() || popupKeys.isEmpty())
+    if (!popupKeysDelegate.isInitialized())
+        return null
+    if (params.mId.isAlphabetKeyboard && !params.mId.mSubtype.isCustom) {
+        popupKeys.remove(",")
+        popupKeys.remove("\\,")
+    }
+    if (popupKeys.isEmpty())
         return null
     val fco = popupKeys.firstOrNull { it.startsWith(Key.POPUP_KEYS_FIXED_COLUMN_ORDER) }
     if (fco != null && fco.substringAfter(Key.POPUP_KEYS_FIXED_COLUMN_ORDER).toIntOrNull() != popupKeys.size - 1) {
@@ -76,6 +82,7 @@ fun getHintLabel(popupSet: PopupSet<*>?, params: KeyboardParams, label: String):
         return null // better show nothing instead of the toolbar key label
 
     return KeySpecParser.getLabel(transformLabel(hintLabel!!, params))
+        ?.takeUnless { it == "," && params.mId.isAlphabetKeyboard && !params.mId.mSubtype.isCustom }
         // avoid e.g. !autoColumnOrder! as label
         //  this will avoid having labels on comma and period keys
         ?.takeIf { !it.startsWith("!") || it.count { it == '!' } != 2 } // excluding the special labels

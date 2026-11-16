@@ -64,7 +64,7 @@ Open **Glyph → settings → Set as default** to choose it as your Home app. Yo
 Open **Launcher settings → Glyph Keyboard** to enable and select the included system keyboard.
 It works in other Android apps too.
 
-- Comma between the spacebar and full stop, with an apostrophe to the left of the spacebar on letters and symbols.
+- Comma between the question mark and Backspace on the first symbols page, with an apostrophe to the left of the spacebar on letters and symbols.
 - Offline swipe typing, spelling correction, and word suggestions.
 - Emoji palette with local English keyword search, plus symbols and long-press alternates.
 - Hold toolbar actions or suggested words to use them; quick taps do nothing.

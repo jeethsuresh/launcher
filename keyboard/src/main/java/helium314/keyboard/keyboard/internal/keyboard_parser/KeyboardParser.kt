@@ -108,6 +108,8 @@ class KeyboardParser(private val params: KeyboardParams, private val context: Co
 
         val allFunctionalKeys = LayoutParser.parseLayout(LayoutType.FUNCTIONAL, params, context)
         adjustBottomFunctionalRowAndBaseKeys(allFunctionalKeys, baseKeys)
+        if (params.mId.mElementId == KeyboardId.ELEMENT_SYMBOLS)
+            putQuestionBeforeComma(baseKeys, allFunctionalKeys)
 
         if (allFunctionalKeys.none { it.singleOrNull()?.isKeyPlaceholder() == true })
             // add a placeholder so splitAt does what we really want
@@ -117,6 +119,7 @@ class KeyboardParser(private val params: KeyboardParams, private val context: Co
 
         // offset for bottom, relevant for getting correct functional key rows
         val bottomIndexOffset = baseKeys.size - functionalKeysBottom.size
+        val hideComma = params.mId.isAlphabetKeyboard && !params.mId.mSubtype.isCustom
 
         val functionalKeys = mutableListOf<Pair<List<KeyParams>, List<KeyParams>>>()
         val baseKeyParams = baseKeys.mapIndexed { i, it ->
@@ -133,7 +136,7 @@ class KeyboardParser(private val params: KeyboardParams, private val context: Co
             val functionalKeysFromBottom = functionalKeysBottom.getOrNull(i - bottomIndexOffset) ?: emptyList()
             functionalKeys.add(getFunctionalKeysBySide(functionalKeysFromTop, functionalKeysFromBottom))
 
-            row.map { key ->
+            row.filterNot { hideComma && (it.code == ','.code || it.label == ",") }.map { key ->
                 val extraFlags = if (key.label.length > 2 && key.label.codePointCount(0, key.label.length) > 2 && !isEmoji(key.label))
                         Key.LABEL_FLAGS_AUTO_X_SCALE
                     else 0
@@ -143,6 +146,24 @@ class KeyboardParser(private val params: KeyboardParams, private val context: Co
             }
         }
         return setReasonableWidths(baseKeyParams, functionalKeys)
+    }
+
+    private fun putQuestionBeforeComma(
+        baseKeys: MutableList<MutableList<KeyData>>,
+        functionalKeys: MutableList<MutableList<KeyData>>,
+    ) {
+        val backspaceRow = functionalKeys.firstOrNull { it.lastOrNull()?.label == KeyLabel.DELETE } ?: return
+        val commaIndex = backspaceRow.lastIndex - 1
+        if (backspaceRow.getOrNull(commaIndex)?.label != ",") return
+
+        // Tablet Backspace is on a different row. Move the existing question key,
+        // including its locale and popups, so the three keys always stay together.
+        val symbolsRow = baseKeys.lastOrNull { it.isNotEmpty() } ?: return
+        if (symbolsRow.size == 1) return
+        val question = symbolsRow.last()
+        if (question.label != "?" && question.label != "؟") return
+        symbolsRow.removeAt(symbolsRow.lastIndex)
+        backspaceRow.add(commaIndex, question.copy(newLabelFlags = question.labelFlags or defaultLabelFlags))
     }
 
     /** interprets key width -1, adjusts row size to nicely fit on screen, adds spacers if necessary */
@@ -244,9 +265,7 @@ class KeyboardParser(private val params: KeyboardParams, private val context: Co
         // add zwnj key next to space if necessary
         val spaceIndex = functionalKeysBottom.indexOfFirst { it.label == KeyLabel.SPACE && it.width <= 0 } // width could be 0 or -1
         if (spaceIndex >= 0 && params.mLocaleKeyboardInfos.hasZwnjKey && params.mId.isAlphabetKeyboard) {
-            // Keep a comma placed after the spacebar next to it.
-            val index = if (functionalKeysBottom.getOrNull(spaceIndex + 1)?.label == ",") spaceIndex else spaceIndex + 1
-            functionalKeysBottom.add(index, TextKeyData(label = KeyLabel.ZWNJ))
+            functionalKeysBottom.add(spaceIndex, TextKeyData(label = KeyLabel.ZWNJ))
         }
         baseKeys.add(mutableListOf())
     }

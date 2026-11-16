@@ -1,9 +1,8 @@
 {
   "schemaVersion": 1,
-  "version": "0.6.4",
-  "versionCode": 14,
+  "version": "0.6.5",
+  "versionCode": 15,
   "changes": [
-    "The comma sits between the spacebar and full stop on letters and both symbols pages.",
-    "Both symbols pages now have an apostrophe immediately to the left of the spacebar."
+    "The comma is now only on the first symbols page, between the question mark and Backspace."
   ]
 }
