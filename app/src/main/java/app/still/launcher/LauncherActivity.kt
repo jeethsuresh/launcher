@@ -68,6 +68,9 @@ class LauncherActivity : Activity() {
     private var currentPage = 0
     private var panel: View? = null
     private var panelKind = ""
+    private var closingPanel: View? = null
+    private var panelReturnFocus: View? = null
+    private lateinit var motionSettings: GlyphMotionSettings
     private var drawerAdapter: AppsAdapter? = null
     private var drawerSummary: TextView? = null
     private var drawerEmpty: TextView? = null
@@ -119,6 +122,16 @@ class LauncherActivity : Activity() {
         widgets = Widgets(this, store, ::placeWidget, ::message)
         catalog = AppCatalog(this, ::catalogChanged)
         createHome()
+        motionSettings = GlyphMotionSettings(this) {
+            if (!GlyphMotion.enabled()) {
+                if (closingPanel != null) closePanel()
+                GlyphMotion.finishTree(root)
+                panel?.let { current ->
+                    current.animate().cancel(); current.alpha = 1f
+                    if (current !is FolderPopover && current !is PullDownDrawerLayout) current.translationY = 0f
+                }
+            }
+        }
         if (Build.VERSION.SDK_INT >= 33) registerReceiver(wallpaperChanges, IntentFilter(Intent.ACTION_WALLPAPER_CHANGED), Context.RECEIVER_NOT_EXPORTED)
         else registerReceiver(wallpaperChanges, IntentFilter(Intent.ACTION_WALLPAPER_CHANGED))
         if (Build.VERSION.SDK_INT >= 27) {
@@ -133,8 +146,8 @@ class LauncherActivity : Activity() {
         catalog.refresh()
     }
 
-    override fun onStart() { super.onStart(); runCatching { widgets.host.startListening() } }
-    override fun onStop() { runCatching { widgets.host.stopListening() }; super.onStop() }
+    override fun onStart() { super.onStart(); motionSettings.start(); runCatching { widgets.host.startListening() } }
+    override fun onStop() { motionSettings.stop(); runCatching { widgets.host.stopListening() }; super.onStop() }
     override fun onResume() {
         super.onResume()
         NotificationBadges.refreshAccess(this)
@@ -143,6 +156,7 @@ class LauncherActivity : Activity() {
     }
     override fun onDestroy() {
         destroyed = true
+        motionSettings.stop()
         if (Build.VERSION.SDK_INT >= 27) (wallpaperListener as? WallpaperManager.OnColorsChangedListener)?.let { WallpaperManager.getInstance(this).removeOnColorsChangedListener(it) }
         runCatching { unregisterReceiver(wallpaperChanges) }; activeDialog?.dismiss(); catalog.close(); io.shutdownNow(); main.removeCallbacksAndMessages(null)
         super.onDestroy()
@@ -475,7 +489,9 @@ class LauncherActivity : Activity() {
     private fun openFolder(key: String, fromDock: Boolean = false) {
         val folder = store.folders.find { it.key == key } ?: return
         panelHistory.visit("folder/$key/$fromDock")
+        val originFocus = root.findFocus()
         closePanel(record = false)
+        panelReturnFocus = originFocus
         openFolderKey = key; folderFromDock = fromDock; panelKind = "folder"
         val rowHeight = dp(maxOf(88, store.settings.iconSize + 44))
         val body = PullDownDrawerLayout(this).apply {
@@ -487,7 +503,7 @@ class LauncherActivity : Activity() {
         val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         header.addView(label(folder.title, 18f, ink, true).apply { maxLines = 1; ellipsize = TextUtils.TruncateAt.END }, LinearLayout.LayoutParams(0, -2, 1f))
         header.addView(pill("Rename", card, ink) { renameFolder(key) }, LinearLayout.LayoutParams(dp(80), dp(40)))
-        header.addView(iconButton("close", "Back to home", ink) { closePanel() }, LinearLayout.LayoutParams(dp(48), dp(48)))
+        header.addView(iconButton("close", "Back to home", ink) { dismissPanel() }, LinearLayout.LayoutParams(dp(48), dp(48)))
         body.addView(header, LinearLayout.LayoutParams(-1, dp(48)))
         val grid = GridView(this).apply {
             numColumns = store.settings.columns; stretchMode = GridView.STRETCH_COLUMN_WIDTH
@@ -513,12 +529,23 @@ class LauncherActivity : Activity() {
             folderTop = {
                 if (fromDock) null else store.items.find { it.kind == ItemKind.FOLDER && it.appKey == key && it.page == currentPage }
                     ?.let { home.top + pager.top + (it.y * workspace.cellHeight).toInt() }
-            }, dismissed = ::closePanel)
+            }, dismissed = ::dismissPanel)
         body.canPull = { !grid.canScrollVertically(-1) }
         body.dismissed = { if (panel === overlay) closePanel() }
         panel = overlay
         home.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
         safe.addView(overlay, FrameLayout.LayoutParams(-1, -1))
+        body.post {
+            if (panel === overlay && body.isAttachedToWindow) {
+                val sourceY = if (fromDock) (home.top + dock.top).toFloat() else {
+                    val item = store.items.find { it.kind == ItemKind.FOLDER && it.appKey == key && it.page == currentPage }
+                    item?.let { home.top + pager.top + (it.y + .5f) * workspace.cellHeight }
+                        ?: body.top.toFloat()
+                }
+                val distance = (sourceY - body.top - dp(24)).coerceIn(-dp(32).toFloat(), dp(32).toFloat())
+                GlyphMotion.arrive(body, distance)
+            }
+        }
         header.getChildAt(header.childCount - 1).requestFocus()
         updateSystemBars(); root.requestApplyInsets()
     }
@@ -651,7 +678,8 @@ class LauncherActivity : Activity() {
         val col = (x / (pager.width.toFloat() / store.settings.columns) - item.spanX / 2f).roundToInt().coerceIn(0, store.settings.columns - item.spanX)
         val row = (y / (pager.height.toFloat() / store.settings.rows) - item.spanY / 2f).roundToInt().coerceIn(0, store.settings.rows - item.spanY)
         val candidate = item.copy(page = currentPage, x = col, y = row)
-        workspace.dropAllowed = engine.fits(candidate, store.items) || groupAt(candidate, activeDrag) != null
+        workspace.dropGrouping = groupAt(candidate, activeDrag) != null
+        workspace.dropAllowed = engine.fits(candidate, store.items) || workspace.dropGrouping
         workspace.dropPreview = candidate
         return candidate
     }
@@ -946,14 +974,16 @@ class LauncherActivity : Activity() {
 
     private fun panelBase(title: String, subtitle: String, kind: String): LinearLayout {
         panelHistory.visit(kind)
+        val originFocus = root.findFocus()
         closePanel(record = false); panelKind = kind
+        panelReturnFocus = originFocus
         val body = (if (kind == "drawer") PullDownDrawerLayout(this) else LinearLayout(this)).apply {
             orientation = LinearLayout.VERTICAL; background = rounded(if (kind == "drawer") tinted(store.settings.drawerColor.ifEmpty { if (light) "#f3f5f0" else "#101b18" }, store.settings.drawerOpacity) else surface, dp(28).toFloat())
             setPadding(dp(24), dp(8), dp(24), dp(12)); isClickable = true
         }
         val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         header.addView(if (kind == "drawer") View(this) else label(kind.uppercase(Locale.ROOT), 10f, muted, true).apply { letterSpacing = .18f }, LinearLayout.LayoutParams(0, -2, 1f))
-        header.addView(iconButton("close", "Back to home", ink) { closePanel() }, LinearLayout.LayoutParams(dp(48), dp(48)))
+        header.addView(iconButton("close", "Back to home", ink) { dismissPanel() }, LinearLayout.LayoutParams(dp(48), dp(48)))
         body.addView(header, LinearLayout.LayoutParams(-1, dp(52)))
         if (title.isNotEmpty()) body.addView(label(title, 34f, ink).apply { letterSpacing = -.04f }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
         if (kind != "drawer") body.addView(label(subtitle, 13f, muted).apply { tag = "panelSubtitle"; setLineSpacing(dp(3).toFloat(), 1f) }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10); bottomMargin = dp(24) })
@@ -965,17 +995,37 @@ class LauncherActivity : Activity() {
             body.dismissed = { if (panel === body) closePanel() }
         }
         safe.addView(body, FrameLayout.LayoutParams(-1, -1).apply { topMargin = dp(8) })
-        body.alpha = 0f; body.translationY = dp(24).toFloat(); body.animate().alpha(1f).translationY(0f).setDuration(180).start()
+        GlyphMotion.arrive(body)
         updateSystemBars(); root.requestApplyInsets()
         return body
     }
 
+    private fun dismissPanel() {
+        val current = panel ?: return
+        if (closingPanel === current) return
+        if (!GlyphMotion.enabled()) { closePanel(); return }
+        closingPanel = current
+        val visual = if (current is FolderPopover) current.sheet else current
+        visual.animate().cancel()
+        visual.animate().alpha(0f).translationY(dp(10).toFloat()).setDuration(130)
+            .withEndAction { if (panel === current) closePanel() }.start()
+    }
+
     private fun closePanel(record: Boolean = true) {
         if (record && panel != null) panelHistory.visit("")
-        hideKeyboard(); panel?.let { safe.removeView(it) }; if (::home.isInitialized) home.visibility = View.VISIBLE; panel = null; panelKind = ""; drawerAdapter = null; drawerSummary = null; drawerEmpty = null
+        val returnFocus = panelReturnFocus
+        panelReturnFocus = null; closingPanel = null
+        hideKeyboard(); panel?.let {
+            it.animate().cancel()
+            if (it is FolderPopover) it.sheet.animate().cancel()
+            safe.removeView(it)
+        }; if (::home.isInitialized) home.visibility = View.VISIBLE; panel = null; panelKind = ""; drawerAdapter = null; drawerSummary = null; drawerEmpty = null
         folderAdapter = null; openFolderKey = null
         if (::home.isInitialized) home.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
         if (::root.isInitialized) { updateSystemBars(); root.requestApplyInsets() }
+        if (record && ::drawerButton.isInitialized) {
+            (returnFocus?.takeIf { it.isAttachedToWindow && it.isShown && it.isFocusable } ?: drawerButton).requestFocus()
+        }
     }
 
     private fun showSettings() {
@@ -1404,8 +1454,14 @@ class LauncherActivity : Activity() {
         if (requestCode == HOME_ROLE && panelKind == "settings") showSettings()
     }
 
-    private fun iconButton(symbol: String, description: String, color: Int, clicked: () -> Unit): View = Glyph(this, symbol, color).apply {
-        contentDescription = description; isFocusable = true; ripple(Color.TRANSPARENT, 24); setOnClickListener { clicked() }
+    private fun iconButton(symbol: String, description: String, color: Int, clicked: () -> Unit): View = FrameLayout(this).apply {
+        contentDescription = description; isFocusable = true; minimumWidth = dp(48); minimumHeight = dp(48)
+        ripple(Color.TRANSPARENT, 24)
+        addView(TactileSurface(this@LauncherActivity).apply {
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+            addView(Glyph(this@LauncherActivity, symbol, color), FrameLayout.LayoutParams(-1, -1))
+        }, FrameLayout.LayoutParams(-1, -1))
+        setOnClickListener { clicked() }
     }
     private fun pill(text: String, color: Int, textColor: Int, clicked: () -> Unit): View = label(text, 14f, textColor, true).apply {
         gravity = Gravity.CENTER; ripple(color, 24); isFocusable = true; setOnClickListener { clicked() }

@@ -110,7 +110,7 @@ class NotificationBadgesService : NotificationListenerService() {
 }
 
 /** Updates only the count and accessible name, preserving scroll, search, widgets, and active drags. */
-class BadgedIcon(context: Context, private val targets: Set<BadgeTarget>, private val changed: (Int) -> Unit) : FrameLayout(context) {
+class BadgedIcon(context: Context, private val targets: Set<BadgeTarget>, private val changed: (Int) -> Unit) : TactileSurface(context) {
     var badgeCount = 0
         private set
     val hasBadge get() = badgeCount > 0

@@ -61,10 +61,10 @@ class WorkspacePager(context: Context) : ViewGroup(context) {
         selectedPage = next; animationTarget = next
         updateAccessibility(); layoutPages()
         pageChanged(next)
-        if (!animated || width == 0) { settle(); return }
+        if (!animated || !GlyphMotion.enabled() || width == 0) { settle(); return }
         val destination = direction * width
         animator = ValueAnimator.ofInt(scrollX, destination).apply {
-            duration = 220
+            duration = GlyphMotion.PAGE
             interpolator = DecelerateInterpolator()
             addUpdateListener { scrollTo(it.animatedValue as Int, 0) }
             addListener(object : AnimatorListenerAdapter() {
@@ -100,6 +100,10 @@ class WorkspacePager(context: Context) : ViewGroup(context) {
         layoutPage = selectedPage; animationTarget = null; scrolling = false
         scrollTo(0, 0)
         if (reloadPending) { reloadPending = false; rebuild() } else keepNeighbors()
+    }
+
+    fun finishMotion() {
+        if (animator != null) { stopAnimation(); settle() }
     }
 
     private fun stopAnimation() {

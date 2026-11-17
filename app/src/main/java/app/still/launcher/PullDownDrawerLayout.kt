@@ -18,6 +18,7 @@ class PullDownDrawerLayout(context: Context) : LinearLayout(context) {
     private var startY = 0f
     private var pulling = false
     private var tracker: VelocityTracker? = null
+    private var settlingDismiss: Boolean? = null
 
     override fun requestDisallowInterceptTouchEvent(disallowIntercept: Boolean) {
         // AbsListView claims the gesture at its smaller touch slop. Keep observing
@@ -37,6 +38,8 @@ class PullDownDrawerLayout(context: Context) : LinearLayout(context) {
                 if (dy > slop * 2 && dy > abs(event.rawX - startX) && canPull()) {
                     pulling = true
                     animate().cancel()
+                    alpha = 1f
+                    settlingDismiss = null
                     parent.requestDisallowInterceptTouchEvent(true)
                     pullStarted()
                     return true
@@ -62,15 +65,30 @@ class PullDownDrawerLayout(context: Context) : LinearLayout(context) {
                     (dy > 100 * density || (dy > 32 * density && (tracker?.yVelocity ?: 0f) > 1000 * density))
                 tracker?.recycle(); tracker = null; pulling = false
                 parent.requestDisallowInterceptTouchEvent(false)
-                animate().translationY(if (close) height.toFloat() else 0f).setDuration(180)
-                    .withEndAction { if (close) dismissed() else settled() }.start()
+                settlingDismiss = close
+                if (!GlyphMotion.enabled()) finishMotion()
+                else animate().translationY(if (close) height.toFloat() else 0f)
+                    .setDuration(GlyphMotion.RELEASE)
+                    .withEndAction { finishMotion() }.start()
             }
         }
         return true
     }
 
+    fun finishMotion() {
+        val close = settlingDismiss ?: run {
+            if (!pulling) { animate().cancel(); alpha = 1f; translationY = 0f }
+            return
+        }
+        settlingDismiss = null
+        animate().cancel()
+        alpha = 1f
+        translationY = if (close) height.toFloat() else 0f
+        if (close) dismissed() else settled()
+    }
+
     override fun onDetachedFromWindow() {
-        animate().cancel(); tracker?.recycle(); tracker = null
+        settlingDismiss = null; animate().cancel(); tracker?.recycle(); tracker = null
         super.onDetachedFromWindow()
     }
 }
