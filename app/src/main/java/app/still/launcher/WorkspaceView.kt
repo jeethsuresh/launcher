@@ -19,6 +19,9 @@ class WorkspaceView(context: Context) : ViewGroup(context) {
     var dropPreview: HomeItem? = null
         set(value) { field = value; invalidate() }
     var dropAllowed = true
+        set(value) { field = value; invalidate() }
+    var dropGrouping = false
+        set(value) { field = value; invalidate() }
     var blankHold: (() -> Unit)? = null
     var swipe: ((Int, Int) -> Unit)? = null
     val cellWidth get() = width.toFloat() / columns
@@ -57,6 +60,15 @@ class WorkspaceView(context: Context) : ViewGroup(context) {
         dropPreview?.let {
             paint.color = if (dropAllowed) 0x55b6dac7 else 0x55f2a399
             canvas.drawRoundRect(RectF(it.x * cellWidth + 4, it.y * cellHeight + 4, (it.x + it.spanX) * cellWidth - 4, (it.y + it.spanY) * cellHeight - 4), 22f, 22f, paint)
+            val density = resources.displayMetrics.density
+            val right = (it.x + it.spanX) * cellWidth - 15 * density
+            val top = it.y * cellHeight + 15 * density
+            paint.color = if (dropAllowed) 0xff254c3b.toInt() else 0xff8a302c.toInt()
+            canvas.drawCircle(right, top, 11 * density, paint)
+            paint.color = Color.WHITE; paint.textSize = 15 * density; paint.textAlign = Paint.Align.CENTER
+            val cue = if (!dropAllowed) "×" else if (dropGrouping) "+" else "✓"
+            val metrics = paint.fontMetrics
+            canvas.drawText(cue, right, top - (metrics.ascent + metrics.descent) / 2, paint)
         }
     }
     fun isWidgetAt(x: Float, y: Float): Boolean = placements.any { (view, item) ->

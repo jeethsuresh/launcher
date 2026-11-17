@@ -1,8 +1,10 @@
 {
   "schemaVersion": 1,
-  "version": "0.6.5",
-  "versionCode": 15,
+  "version": "0.7.0",
+  "versionCode": 16,
   "changes": [
-    "The comma is now only on the first symbols page, between the question mark and Backspace."
+    "Icons and controls respond with a subtle press while their input targets stay in place.",
+    "Folders, drawers and pages share consistent settling and immediately respect Android animation settings.",
+    "Drop previews distinguish valid placement, folder grouping and blocked placement; keyboard settings share a calmer Glyph style."
   ]
 }

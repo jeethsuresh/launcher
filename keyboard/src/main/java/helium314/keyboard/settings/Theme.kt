@@ -3,6 +3,9 @@ package helium314.keyboard.settings
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Shapes
+import androidx.compose.ui.unit.dp
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
@@ -33,11 +36,15 @@ fun Theme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit
     MaterialTheme(
         colorScheme = colorScheme,
         typography = Typography(
-            titleLarge = material3.titleLarge.copy(fontWeight = FontWeight.Bold),
-            titleMedium = material3.titleMedium.copy(fontWeight = FontWeight.Bold),
-            titleSmall = material3.titleSmall.copy(fontWeight = FontWeight.Bold)
+            titleLarge = material3.titleLarge.copy(fontWeight = FontWeight.SemiBold),
+            titleMedium = material3.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+            titleSmall = material3.titleSmall.copy(fontWeight = FontWeight.SemiBold)
         ),
-        //shapes = Shapes(),
+        shapes = Shapes(
+            small = RoundedCornerShape(12.dp),
+            medium = RoundedCornerShape(16.dp),
+            large = RoundedCornerShape(24.dp),
+        ),
         content = content
     )
 }
