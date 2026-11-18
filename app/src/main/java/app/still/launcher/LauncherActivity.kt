@@ -29,6 +29,7 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.text.TextUtils
 import android.util.SizeF
+import android.view.MotionEvent
 import android.view.DragEvent
 import android.view.Gravity
 import cool.gravitas.navigation.NavigationHistory
@@ -70,9 +71,9 @@ class LauncherActivity : Activity() {
     private var panelKind = ""
     private var closingPanel: View? = null
     private var panelReturnFocus: View? = null
+    private val pressObserver by lazy { GlyphPressObserver(this) }
     private lateinit var motionSettings: GlyphMotionSettings
     private var drawerAdapter: AppsAdapter? = null
-    private var drawerSummary: TextView? = null
     private var drawerEmpty: TextView? = null
     private var folderAdapter: BaseAdapter? = null
     private var openFolderKey: String? = null
@@ -107,6 +108,11 @@ class LauncherActivity : Activity() {
         return store.settings.theme == "light" || (store.settings.theme == "system" && resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_NO)
     }
     private val engine get() = LayoutEngine(store.settings.columns, store.settings.rows)
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        pressObserver.observe(event)
+        return super.dispatchTouchEvent(event)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -645,6 +651,8 @@ class LauncherActivity : Activity() {
         if (size.first > store.settings.columns || size.second > store.settings.rows) {
             message("This widget is too large for your grid. Change the grid in settings."); return
         }
+        GlyphMotion.cancelPresses()
+        GlyphMotion.finishTree(view)
         view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
         dragging = true; activeDrag = payload; afterDrag = null
         draggedItem = store.items.find { it.id == payload.itemId } ?: HomeItem(
@@ -875,7 +883,6 @@ class LauncherActivity : Activity() {
 
     private fun showDrawer(initialQuery: String = "") {
         val body = panelBase("", "", "drawer")
-        drawerSummary = body.findViewWithTag("panelSubtitle")
         val header = body.getChildAt(0) as LinearLayout
         header.addView(pill("Widgets", card, ink) { showWidgets() }, header.childCount - 1, LinearLayout.LayoutParams(dp(88), dp(40)))
         val searchWrap = LinearLayout(this).apply {
@@ -942,7 +949,6 @@ class LauncherActivity : Activity() {
             query = value
             val visible = apps.filterNot { it.key in store.hiddenApps }
             filtered = visible.filter { it.label.contains(value.trim(), true) }
-            drawerSummary?.text = "${visible.size} apps · Hold and drag to home."
             drawerEmpty?.text = if (visible.isEmpty() && store.hiddenApps.isNotEmpty())
                 "No apps to show\nRestore apps in Launcher settings → Hidden apps."
             else "No apps found\nTry another name."
@@ -982,11 +988,11 @@ class LauncherActivity : Activity() {
             setPadding(dp(24), dp(8), dp(24), dp(12)); isClickable = true
         }
         val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        header.addView(if (kind == "drawer") View(this) else label(kind.uppercase(Locale.ROOT), 10f, muted, true).apply { letterSpacing = .18f }, LinearLayout.LayoutParams(0, -2, 1f))
+        header.addView(if (kind == "drawer" || title.isNotEmpty()) View(this) else label(kind.uppercase(Locale.ROOT), 10f, muted, true).apply { letterSpacing = .18f }, LinearLayout.LayoutParams(0, -2, 1f))
         header.addView(iconButton("close", "Back to home", ink) { dismissPanel() }, LinearLayout.LayoutParams(dp(48), dp(48)))
         body.addView(header, LinearLayout.LayoutParams(-1, dp(52)))
         if (title.isNotEmpty()) body.addView(label(title, 34f, ink).apply { letterSpacing = -.04f }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
-        if (kind != "drawer") body.addView(label(subtitle, 13f, muted).apply { tag = "panelSubtitle"; setLineSpacing(dp(3).toFloat(), 1f) }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10); bottomMargin = dp(24) })
+        if (kind != "drawer" && subtitle.isNotEmpty()) body.addView(label(subtitle, 13f, muted).apply { tag = "panelSubtitle"; setLineSpacing(dp(3).toFloat(), 1f) }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10); bottomMargin = dp(24) })
         home.visibility = View.INVISIBLE
         panel = body; panelKind = kind
         if (body is PullDownDrawerLayout) {
@@ -1019,7 +1025,7 @@ class LauncherActivity : Activity() {
             it.animate().cancel()
             if (it is FolderPopover) it.sheet.animate().cancel()
             safe.removeView(it)
-        }; if (::home.isInitialized) home.visibility = View.VISIBLE; panel = null; panelKind = ""; drawerAdapter = null; drawerSummary = null; drawerEmpty = null
+        }; if (::home.isInitialized) home.visibility = View.VISIBLE; panel = null; panelKind = ""; drawerAdapter = null; drawerEmpty = null
         folderAdapter = null; openFolderKey = null
         if (::home.isInitialized) home.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
         if (::root.isInitialized) { updateSystemBars(); root.requestApplyInsets() }
@@ -1029,7 +1035,7 @@ class LauncherActivity : Activity() {
     }
 
     private fun showSettings() {
-        val body = panelBase("Your home, your rules.", "Small adjustments. A space that feels like you.", "settings")
+        val body = panelBase("Settings", "", "settings")
         val scroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false }
         val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         scroll.addView(content); body.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))

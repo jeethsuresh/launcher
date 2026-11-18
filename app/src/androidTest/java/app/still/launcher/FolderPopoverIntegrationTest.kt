@@ -173,6 +173,38 @@ class FolderPopoverIntegrationTest {
         assertEquals(folder.apps.drop(1), LauncherStore(context).folders.single().apps)
     }
 
+    @Test fun tactileArtCancelsWithoutChangingTargetsOrLaunching() = isolated {
+        val target = onMain {
+            android.widget.FrameLayout(activity).apply {
+                isClickable = true; isFocusable = true
+                setOnClickListener { tag = "activated" }
+                addView(TactileSurface(activity), android.widget.FrameLayout.LayoutParams(context.dp(40), context.dp(40)))
+                (activity.findViewById<View>(android.R.id.content) as ViewGroup).addView(this,
+                    ViewGroup.LayoutParams(context.dp(64), context.dp(64)))
+            }
+        }
+        try {
+            await { target.width > 0 }
+            val art = onMain { target.getChildAt(0) as TactileSurface }
+            val bounds = LauncherTestUi.bounds(target)
+            val pointer = LauncherTestUi.Pointer(bounds.exactCenterX(), bounds.exactCenterY()).hold(120)
+            if (GlyphMotion.enabled()) {
+                await { art.scaleY < 1f }
+                onMain { assertEquals(1f, art.scaleX * art.scaleY, .0001f) }
+            }
+            assertEquals(bounds, LauncherTestUi.bounds(target))
+            pointer.cancel()
+            await { art.scaleY == 1f && art.scaleX == 1f }
+            onMain { assertNull(target.tag) }
+            LauncherTestUi.Pointer(bounds.exactCenterX(), bounds.exactCenterY()).up()
+            await { target.tag == "activated" }
+            assertEquals(bounds, LauncherTestUi.bounds(target))
+            onMain { GlyphMotion.finishTree(target); assertEquals(1f, art.scaleY, 0f) }
+        } finally {
+            onMain { (target.parent as ViewGroup).removeView(target) }
+        }
+    }
+
     private fun isolated(test: () -> Unit) {
         val original = LauncherStore(context)
         val state = original.state; val settings = original.settings; val pages = original.pages; val hidden = original.hiddenApps
