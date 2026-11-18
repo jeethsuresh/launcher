@@ -174,6 +174,10 @@ class FolderPopoverIntegrationTest {
     }
 
     @Test fun tactileArtCancelsWithoutChangingTargetsOrLaunching() = isolated {
+        // The suite normally disables animation. Exercise native motion here and
+        // restore that setting even if a pointer assertion fails.
+        val originalScale = shell("settings get global animator_duration_scale").trim().toFloatOrNull() ?: 0f
+        shell("settings put global animator_duration_scale 1")
         val target = onMain {
             android.widget.FrameLayout(activity).apply {
                 isClickable = true; isFocusable = true
@@ -184,24 +188,24 @@ class FolderPopoverIntegrationTest {
             }
         }
         try {
-            await { target.width > 0 }
+            await { GlyphMotion.enabled() && target.width > 0 }
             val art = onMain { target.getChildAt(0) as TactileSurface }
             val bounds = LauncherTestUi.bounds(target)
             val pointer = LauncherTestUi.Pointer(bounds.exactCenterX(), bounds.exactCenterY()).hold(120)
-            if (GlyphMotion.enabled()) {
-                await { art.scaleY < 1f }
-                onMain { assertEquals(1f, art.scaleX * art.scaleY, .0001f) }
-            }
+            await { art.scaleY < 1f }
+            onMain { assertEquals(1f, art.scaleX * art.scaleY, .0001f) }
             assertEquals(bounds, LauncherTestUi.bounds(target))
             pointer.cancel()
             await { art.scaleY == 1f && art.scaleX == 1f }
             onMain { assertNull(target.tag) }
             LauncherTestUi.Pointer(bounds.exactCenterX(), bounds.exactCenterY()).up()
             await { target.tag == "activated" }
+            await { art.scaleY > 1f }
             assertEquals(bounds, LauncherTestUi.bounds(target))
             onMain { GlyphMotion.finishTree(target); assertEquals(1f, art.scaleY, 0f) }
         } finally {
             onMain { (target.parent as ViewGroup).removeView(target) }
+            shell("settings put global animator_duration_scale $originalScale")
         }
     }
 
