@@ -173,6 +173,42 @@ class FolderPopoverIntegrationTest {
         assertEquals(folder.apps.drop(1), LauncherStore(context).folders.single().apps)
     }
 
+    @Test fun tactileArtCancelsWithoutChangingTargetsOrLaunching() = isolated {
+        // The suite normally disables animation. Exercise native motion here and
+        // restore that setting even if a pointer assertion fails.
+        val originalScale = shell("settings get global animator_duration_scale").trim().toFloatOrNull() ?: 0f
+        shell("settings put global animator_duration_scale 1")
+        val target = onMain {
+            android.widget.FrameLayout(activity).apply {
+                isClickable = true; isFocusable = true
+                setOnClickListener { tag = "activated" }
+                addView(TactileSurface(activity), android.widget.FrameLayout.LayoutParams(context.dp(40), context.dp(40)))
+                (activity.findViewById<View>(android.R.id.content) as ViewGroup).addView(this,
+                    ViewGroup.LayoutParams(context.dp(64), context.dp(64)))
+            }
+        }
+        try {
+            await { GlyphMotion.enabled() && target.width > 0 }
+            val art = onMain { target.getChildAt(0) as TactileSurface }
+            val bounds = LauncherTestUi.bounds(target)
+            val pointer = LauncherTestUi.Pointer(bounds.exactCenterX(), bounds.exactCenterY()).hold(120)
+            await { art.scaleY < 1f }
+            onMain { assertEquals(1f, art.scaleX * art.scaleY, .0001f) }
+            assertEquals(bounds, LauncherTestUi.bounds(target))
+            pointer.cancel()
+            await { art.scaleY == 1f && art.scaleX == 1f }
+            onMain { assertNull(target.tag) }
+            LauncherTestUi.Pointer(bounds.exactCenterX(), bounds.exactCenterY()).up()
+            await { target.tag == "activated" }
+            await { art.scaleY > 1f }
+            assertEquals(bounds, LauncherTestUi.bounds(target))
+            onMain { GlyphMotion.finishTree(target); assertEquals(1f, art.scaleY, 0f) }
+        } finally {
+            onMain { (target.parent as ViewGroup).removeView(target) }
+            shell("settings put global animator_duration_scale $originalScale")
+        }
+    }
+
     private fun isolated(test: () -> Unit) {
         val original = LauncherStore(context)
         val state = original.state; val settings = original.settings; val pages = original.pages; val hidden = original.hiddenApps
