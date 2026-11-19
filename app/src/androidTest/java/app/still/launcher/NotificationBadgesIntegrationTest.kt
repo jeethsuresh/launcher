@@ -3,6 +3,7 @@ package app.still.launcher
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import android.view.View
@@ -56,8 +57,7 @@ class NotificationBadgesIntegrationTest {
                 val icon = badges().first()
                 assertTrue(icon.width > 0 && icon.height > 0)
                 seven = badgeBitmap(icon)
-                assertTrue(badgePixels(seven).any { it == 0xffd83c50.toInt() })
-                assertTrue(badgePixels(seven).any { it == android.graphics.Color.WHITE })
+                assertBoldBadge(seven)
             }
             screenshot("numbered-badges-7")
             post(1, number = 2) // Replacing an existing notification replaces its count.
@@ -128,7 +128,7 @@ class NotificationBadgesIntegrationTest {
                 badges().forEach { icon ->
                     assertTrue("Small icons may shrink to fit seven dock slots", icon.width in context.dp(28)..context.dp(36))
                     val bitmap = badgeBitmap(icon)
-                    assertTrue(badgePixels(bitmap).any { it == android.graphics.Color.WHITE })
+                    assertBoldBadge(bitmap)
                     bitmap.recycle()
                 }
             }
@@ -155,11 +155,20 @@ class NotificationBadgesIntegrationTest {
         broadcast("--ei id $id --es channel $channel --ez ongoing $ongoing --ez summary $summary --ez group $group --ei number $number")
     }
     private fun badgeBitmap(icon: BadgedIcon) = Bitmap.createBitmap(icon.width, icon.height, Bitmap.Config.ARGB_8888).also { icon.draw(Canvas(it)) }
+    private fun assertBoldBadge(bitmap: Bitmap) {
+        val fill = 0xffb51e3c.toInt()
+        val filledRows = (0 until bitmap.height).count { y ->
+            (0 until bitmap.width).any { x -> bitmap.getPixel(x, y) == fill }
+        }
+        assertTrue("Badge fill should be at least 18 dp tall", filledRows >= context.dp(18))
+        val interior = badgePixels(bitmap)
+        assertTrue("Badge numeral should be white on red", interior.any { it == Color.WHITE } && interior.any { it == fill })
+    }
     private fun badgePixels(bitmap: Bitmap): IntArray {
         // Restrict to the badge interior so icon artwork and the white border cannot satisfy glyph assertions.
-        val x = bitmap.width - context.dp(14)
-        val y = context.dp(5)
-        val width = context.dp(8)
+        val x = bitmap.width - context.dp(18)
+        val y = context.dp(8)
+        val width = context.dp(10)
         val height = context.dp(10)
         return IntArray(width * height).also { bitmap.getPixels(it, 0, width, x, y, width, height) }
     }

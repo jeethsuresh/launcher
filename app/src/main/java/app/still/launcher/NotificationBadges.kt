@@ -131,12 +131,13 @@ class BadgedIcon(context: Context, private val targets: Set<BadgeTarget>, privat
         super.dispatchDraw(canvas)
         if (!hasBadge) return
         val margin = context.dp(1).toFloat()
+        val outline = context.dp(2).toFloat()
         val availableWidth = width - margin * 2
-        val badgeHeight = minOf(context.dp(18).toFloat(), height - margin * 2)
-        if (availableWidth <= 0 || badgeHeight <= 0) return
+        val badgeHeight = minOf(context.dp(24).toFloat(), height - margin * 2, availableWidth)
+        if (badgeHeight <= outline * 2) return
         val text = badgeLabel(badgeCount)
         val padding = context.dp(4).toFloat()
-        paint.textSize = context.dp(11).toFloat()
+        paint.textSize = context.dp(15).toFloat()
         val maxTextWidth = (availableWidth - padding * 2).coerceAtLeast(1f)
         val textWidth = paint.measureText(text)
         if (textWidth > maxTextWidth) paint.textSize *= maxTextWidth / textWidth
@@ -147,9 +148,10 @@ class BadgedIcon(context: Context, private val targets: Set<BadgeTarget>, privat
         val radius = badgeHeight / 2
         paint.color = Color.WHITE
         canvas.drawRoundRect(left, margin, right, bottom, radius, radius, paint)
-        paint.color = 0xffd83c50.toInt()
-        canvas.drawRoundRect(left + margin, margin * 2, right - margin, bottom - margin,
-            (radius - margin).coerceAtLeast(0f), (radius - margin).coerceAtLeast(0f), paint)
+        paint.color = 0xffb51e3c.toInt()
+        val innerRadius = radius - outline
+        canvas.drawRoundRect(left + outline, margin + outline, right - outline, bottom - outline,
+            innerRadius, innerRadius, paint)
         paint.color = Color.WHITE
         val metrics = paint.fontMetrics
         canvas.drawText(text, (left + right) / 2, margin + (badgeHeight - metrics.ascent - metrics.descent) / 2, paint)
