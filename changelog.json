@@ -1,10 +1,8 @@
 {
   "schemaVersion": 1,
-  "version": "0.8.0",
-  "versionCode": 17,
+  "version": "0.8.1",
+  "versionCode": 18,
   "changes": [
-    "App, folder and control icons compress while held and stretch on release without changing touch targets.",
-    "Scrolling, cancelled presses and dragging settle icon motion without a launch flourish; system animation settings are respected.",
-    "Settings uses a single clear title instead of repeated headings and decorative copy."
+    "Notification badges are larger and easier to read, with bigger numbers, a thicker white outline, and a deeper red fill."
   ]
 }
