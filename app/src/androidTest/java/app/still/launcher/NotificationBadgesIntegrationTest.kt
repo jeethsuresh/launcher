@@ -18,6 +18,7 @@ class NotificationBadgesIntegrationTest {
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
     private val context get() = instrumentation.targetContext
     private val fixture get() = instrumentation.context
+    private val badgeFill = 0xffb51e3c.toInt()
     private lateinit var activity: LauncherActivity
     private val component get() = NotificationBadges.component(context).flattenToString()
 
@@ -154,20 +155,26 @@ class NotificationBadgesIntegrationTest {
     private fun post(id: Int, channel: String = "badge-test", ongoing: Boolean = false, summary: Boolean = false, group: Boolean = false, number: Int = 0) {
         broadcast("--ei id $id --es channel $channel --ez ongoing $ongoing --ez summary $summary --ez group $group --ei number $number")
     }
-    private fun badgeBitmap(icon: BadgedIcon) = Bitmap.createBitmap(icon.width, icon.height, Bitmap.Config.ARGB_8888).also { icon.draw(Canvas(it)) }
+    private fun badgeBitmap(icon: BadgedIcon) = Bitmap.createBitmap(icon.width, icon.height, Bitmap.Config.ARGB_8888).also {
+        val canvas = Canvas(it)
+        canvas.translate(-icon.left.toFloat(), -icon.top.toFloat())
+        (icon.parent as View).draw(canvas)
+    }
+    private fun fillColumns(bitmap: Bitmap, y: Int) = (0 until bitmap.width).filter { x -> bitmap.getPixel(x, y) == badgeFill }
     private fun assertBoldBadge(bitmap: Bitmap) {
-        val fill = 0xffb51e3c.toInt()
-        val filledRows = (0 until bitmap.height).count { y ->
-            (0 until bitmap.width).any { x -> bitmap.getPixel(x, y) == fill }
-        }
-        assertTrue("Badge fill should be at least 18 dp tall", filledRows >= context.dp(18))
+        val filledRows = (0 until bitmap.height).filter { y -> fillColumns(bitmap, y).isNotEmpty() }
+        assertTrue("Badge fill should be at least 18 dp tall", filledRows.size >= context.dp(18))
+        val top = filledRows.first()
+        val topFill = fillColumns(bitmap, top)
+        assertTrue("Tile padding should leave the top white outline visible",
+            top > 0 && bitmap.getPixel(topFill[topFill.size / 2], top - 1) == Color.WHITE)
         val interior = badgePixels(bitmap)
-        assertTrue("Badge numeral should be white on red", interior.any { it == Color.WHITE } && interior.any { it == fill })
+        assertTrue("Badge numeral should be white on red", interior.any { it == Color.WHITE } && interior.any { it == badgeFill })
     }
     private fun badgePixels(bitmap: Bitmap): IntArray {
         // Restrict to the badge interior so icon artwork and the white border cannot satisfy glyph assertions.
         val x = bitmap.width - context.dp(18)
-        val y = context.dp(8)
+        val y = (0 until bitmap.height).first { fillColumns(bitmap, it).isNotEmpty() } + context.dp(5)
         val width = context.dp(10)
         val height = context.dp(10)
         return IntArray(width * height).also { bitmap.getPixels(it, 0, width, x, y, width, height) }

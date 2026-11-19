@@ -17,6 +17,7 @@ import android.provider.Settings
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.view.View
+import android.view.ViewGroup
 import android.widget.FrameLayout
 
 /** Process-local state only. No notification text, history, or layout changes are retained. */
@@ -132,8 +133,12 @@ class BadgedIcon(context: Context, private val targets: Set<BadgeTarget>, privat
         if (!hasBadge) return
         val margin = context.dp(1).toFloat()
         val outline = context.dp(2).toFloat()
+        // A centered icon can extend into the tile's top padding on short home grid rows.
+        val tile = parent as? ViewGroup
+        val clippedTop = if (tile?.clipToPadding == true) (tile.paddingTop - top).coerceAtLeast(0) else 0
+        val badgeTop = margin + clippedTop
         val availableWidth = width - margin * 2
-        val badgeHeight = minOf(context.dp(24).toFloat(), height - margin * 2, availableWidth)
+        val badgeHeight = minOf(context.dp(24).toFloat(), height - badgeTop - margin, availableWidth)
         if (badgeHeight <= outline * 2) return
         val text = badgeLabel(badgeCount)
         val padding = context.dp(4).toFloat()
@@ -144,16 +149,16 @@ class BadgedIcon(context: Context, private val targets: Set<BadgeTarget>, privat
         val badgeWidth = maxOf(badgeHeight, paint.measureText(text) + padding * 2).coerceAtMost(availableWidth)
         val right = width - margin
         val left = right - badgeWidth
-        val bottom = margin + badgeHeight
+        val bottom = badgeTop + badgeHeight
         val radius = badgeHeight / 2
         paint.color = Color.WHITE
-        canvas.drawRoundRect(left, margin, right, bottom, radius, radius, paint)
+        canvas.drawRoundRect(left, badgeTop, right, bottom, radius, radius, paint)
         paint.color = 0xffb51e3c.toInt()
         val innerRadius = radius - outline
-        canvas.drawRoundRect(left + outline, margin + outline, right - outline, bottom - outline,
+        canvas.drawRoundRect(left + outline, badgeTop + outline, right - outline, bottom - outline,
             innerRadius, innerRadius, paint)
         paint.color = Color.WHITE
         val metrics = paint.fontMetrics
-        canvas.drawText(text, (left + right) / 2, margin + (badgeHeight - metrics.ascent - metrics.descent) / 2, paint)
+        canvas.drawText(text, (left + right) / 2, badgeTop + (badgeHeight - metrics.ascent - metrics.descent) / 2, paint)
     }
 }
