@@ -53,6 +53,7 @@ class NotificationBadgesIntegrationTest {
             val homeTiles = onMain { badges() }
             post(1, number = 7)
             awaitMain { badges().all { it.badgeCount == 7 } }
+            screenshot("numbered-badges-7")
             lateinit var seven: Bitmap
             instrumentation.runOnMainSync {
                 assertEquals(homeTiles, badges()) // Updates must not rebuild the workspace or disrupt dragging.
@@ -60,7 +61,6 @@ class NotificationBadgesIntegrationTest {
                 seven = badgeBitmap(homeTiles.first())
                 assertBoldBadge(seven)
             }
-            screenshot("numbered-badges-7")
             post(1, number = 2) // Replacing an existing notification replaces its count.
             awaitMain { badges().all { it.badgeCount == 2 } }
             instrumentation.runOnMainSync {
@@ -108,6 +108,7 @@ class NotificationBadgesIntegrationTest {
 
             post(7, number = 105)
             awaitMain { drawerTile.badgeCount == 105 }
+            screenshot("numbered-badges-99-plus")
             instrumentation.runOnMainSync {
                 assertEquals("99+", badgeLabel(drawerTile.badgeCount))
                 assertTrue(drawerTile.contentDescription.endsWith(", 105 notifications"))
@@ -117,7 +118,6 @@ class NotificationBadgesIntegrationTest {
                 assertTrue("Badge should extend to the right of the icon art", fill.right > drawerTile.art.right)
                 bitmap.recycle()
             }
-            screenshot("numbered-badges-99-plus")
             shell("settings put secure notification_badging 0")
             awaitMain { !drawerTile.hasBadge }
             shell("settings put secure notification_badging 1")
@@ -131,6 +131,7 @@ class NotificationBadgesIntegrationTest {
                 settings.copy(columns = 4, rows = 6, dockSlots = 7, iconSize = 36, labels = true), listOf(folder))
             restart()
             awaitMain { badges().size == 4 && badges().all { it.badgeCount == 105 } }
+            screenshot("numbered-badges-small-icons")
             instrumentation.runOnMainSync {
                 badges().forEach { tile ->
                     assertTrue("Small icons may shrink to fit seven dock slots", tile.art.width in context.dp(28)..context.dp(36))
@@ -139,7 +140,6 @@ class NotificationBadgesIntegrationTest {
                     bitmap.recycle()
                 }
             }
-            screenshot("numbered-badges-small-icons")
             broadcast("--es operation cleanup")
             awaitMain { badges().none { it.hasBadge } }
             assertEquals(compactItems, LauncherStore(context).items)
@@ -178,10 +178,14 @@ class NotificationBadgesIntegrationTest {
         val fill = badgeFillBounds(bitmap)
         val expectedFillHeight = context.dp(24) - 2 * context.dp(2)
         assertEquals("Badge should retain its height", expectedFillHeight.toFloat(), fill.height().toFloat(), 1f)
+        // Sample inside the white outline, past antialiasing at the edge of the red fill.
+        val inset = maxOf(1, context.dp(2) / 2)
+        val outlineTop = fill.top - inset
+        val outlineRight = fill.right + inset
         assertTrue("The top white outline should be fully visible",
-            fill.top > 0 && bitmap.getPixel(fill.centerX(), fill.top - 1) == Color.WHITE)
+            outlineTop >= 0 && bitmap.getPixel(fill.centerX(), outlineTop) == Color.WHITE)
         assertTrue("The right white outline should be fully visible",
-            fill.right < bitmap.width && bitmap.getPixel(fill.right, fill.centerY()) == Color.WHITE)
+            outlineRight < bitmap.width && bitmap.getPixel(outlineRight, fill.centerY()) == Color.WHITE)
         val interior = badgePixels(bitmap, fill)
         assertTrue("Badge numeral should be white on red", interior.any { it == Color.WHITE } && interior.any { it == badgeFill })
         return fill
