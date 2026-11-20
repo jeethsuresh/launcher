@@ -432,24 +432,18 @@ class LauncherActivity : Activity() {
 
     private fun appTile(key: String, showLabel: Boolean, onSurface: Boolean): View {
         val app = apps.find { it.key == key }
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
-            setPadding(dp(2), dp(5), dp(2), dp(3)); isFocusable = true
-            val name = app?.label ?: "Unavailable app"
-            contentDescription = name
+        val name = app?.label ?: "Unavailable app"
+        // Narrow grids and seven-slot docks should never clip an icon.
+        val available = resources.displayMetrics.widthPixels / maxOf(store.settings.columns, store.settings.dockSlots) - dp(10)
+        val side = minOf(dp(store.settings.iconSize), available).coerceAtLeast(dp(28))
+        return BadgedTile(this, badgeTargetsFor(listOf(key)), name, side).apply {
+            setPadding(dp(2), dp(5), dp(2), dp(3))
             val icon = ImageView(this@LauncherActivity).apply {
                 scaleType = ImageView.ScaleType.FIT_CENTER; tag = key
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
                 setImageDrawable(packageManager.defaultActivityIcon)
             }
-            // Narrow grids and seven-slot docks should never clip an icon.
-            val available = resources.displayMetrics.widthPixels / maxOf(store.settings.columns, store.settings.dockSlots) - dp(10)
-            val side = minOf(dp(store.settings.iconSize), available).coerceAtLeast(dp(28))
-            val badged = BadgedIcon(this@LauncherActivity, badgeTargetsFor(listOf(key))) { count ->
-                contentDescription = name + badgeDescription(count)
-            }
-            badged.addView(icon, FrameLayout.LayoutParams(-1, -1))
-            addView(badged, LinearLayout.LayoutParams(side, side))
+            art.addView(icon, FrameLayout.LayoutParams(-1, -1))
             if (app != null) catalog.icon(app) { drawable -> if (icon.tag == key) icon.setImageDrawable(drawable) }
             if (showLabel) addView(label(app?.label ?: "Unavailable", 11f, if (onSurface) ink else Color.WHITE).apply {
                 gravity = Gravity.CENTER; maxLines = 1; ellipsize = TextUtils.TruncateAt.END
@@ -467,25 +461,19 @@ class LauncherActivity : Activity() {
 
     private fun folderTile(key: String, showLabel: Boolean): View {
         val folder = store.folders.find { it.key == key }
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; isFocusable = true
-            val name = "${folder?.title ?: "Folder"}, folder, ${folder?.apps?.size ?: 0} apps"
-            contentDescription = name
+        val name = "${folder?.title ?: "Folder"}, folder, ${folder?.apps?.size ?: 0} apps"
+        val side = minOf(dp(store.settings.iconSize), resources.displayMetrics.widthPixels / maxOf(store.settings.columns, store.settings.dockSlots) - dp(10)).coerceAtLeast(dp(28))
+        return BadgedTile(this, badgeTargetsFor(folder?.apps.orEmpty()), name, side).apply {
             val preview = GridLayout(this@LauncherActivity).apply {
                 columnCount = 2; rowCount = 2; setPadding(dp(5), dp(5), dp(5), dp(5))
                 background = rounded(0x66d0e8d6, dp(16).toFloat()); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
             }
-            val side = minOf(dp(store.settings.iconSize), resources.displayMetrics.widthPixels / maxOf(store.settings.columns, store.settings.dockSlots) - dp(10)).coerceAtLeast(dp(28))
             folder?.apps?.take(4)?.forEach { appKey ->
                 val icon = ImageView(this@LauncherActivity).apply { scaleType = ImageView.ScaleType.FIT_CENTER; setImageDrawable(packageManager.defaultActivityIcon) }
                 apps.find { it.key == appKey }?.let { app -> catalog.icon(app) { icon.setImageDrawable(it) } }
                 preview.addView(icon, ViewGroup.LayoutParams((side - dp(10)) / 2, (side - dp(10)) / 2))
             }
-            val badged = BadgedIcon(this@LauncherActivity, badgeTargetsFor(folder?.apps.orEmpty())) { count ->
-                contentDescription = name + badgeDescription(count)
-            }
-            badged.addView(preview, FrameLayout.LayoutParams(-1, -1))
-            addView(badged, LinearLayout.LayoutParams(side, side))
+            art.addView(preview, FrameLayout.LayoutParams(-1, -1))
             if (showLabel) addView(label(folder?.title ?: "Folder", 11f, Color.WHITE).apply {
                 gravity = Gravity.CENTER; maxLines = 1; ellipsize = TextUtils.TruncateAt.END
             }, LinearLayout.LayoutParams(-1, dp(22)).apply { topMargin = dp(5) })
