@@ -16,9 +16,9 @@ import android.os.UserManager
 import android.provider.Settings
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
+import android.view.Gravity
 import android.view.View
-import android.view.ViewGroup
-import android.widget.FrameLayout
+import android.widget.LinearLayout
 
 /** Process-local state only. No notification text, history, or layout changes are retained. */
 object NotificationBadges {
@@ -110,8 +110,11 @@ class NotificationBadgesService : NotificationListenerService() {
     }
 }
 
-/** Updates only the count and accessible name, preserving scroll, search, widgets, and active drags. */
-class BadgedIcon(context: Context, private val targets: Set<BadgeTarget>, private val changed: (Int) -> Unit) : TactileSurface(context) {
+/** The art can move on press while the badge stays anchored to the tile. */
+internal class BadgedTile(context: Context, private val targets: Set<BadgeTarget>, private val name: String, iconSize: Int) : LinearLayout(context) {
+    val art = TactileSurface(context).apply {
+        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+    }
     var badgeCount = 0
         private set
     val hasBadge get() = badgeCount > 0
@@ -121,11 +124,17 @@ class BadgedIcon(context: Context, private val targets: Set<BadgeTarget>, privat
     }
     private val observer: () -> Unit = {
         badgeCount = NotificationBadges.countFor(targets)
-        changed(badgeCount)
+        contentDescription = name + badgeDescription(badgeCount)
         invalidate()
     }
 
-    init { importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS }
+    init {
+        orientation = VERTICAL
+        gravity = Gravity.CENTER
+        isFocusable = true
+        contentDescription = name
+        addView(art, LayoutParams(iconSize, iconSize))
+    }
     override fun onAttachedToWindow() { super.onAttachedToWindow(); NotificationBadges.observe(observer) }
     override fun onDetachedFromWindow() { NotificationBadges.removeObserver(observer); super.onDetachedFromWindow() }
     override fun dispatchDraw(canvas: Canvas) {
@@ -133,12 +142,8 @@ class BadgedIcon(context: Context, private val targets: Set<BadgeTarget>, privat
         if (!hasBadge) return
         val margin = context.dp(1).toFloat()
         val outline = context.dp(2).toFloat()
-        // A centered icon can extend into the tile's top padding on short home grid rows.
-        val tile = parent as? ViewGroup
-        val clippedTop = if (tile?.clipToPadding == true) (tile.paddingTop - top).coerceAtLeast(0) else 0
-        val badgeTop = margin + clippedTop
-        val availableWidth = width - margin * 2
-        val badgeHeight = minOf(context.dp(24).toFloat(), height - badgeTop - margin, availableWidth)
+        val availableWidth = minOf(art.width, width) - margin * 2
+        val badgeHeight = minOf(context.dp(24).toFloat(), height - margin * 2, availableWidth)
         if (badgeHeight <= outline * 2) return
         val text = badgeLabel(badgeCount)
         val padding = context.dp(4).toFloat()
@@ -147,7 +152,10 @@ class BadgedIcon(context: Context, private val targets: Set<BadgeTarget>, privat
         val textWidth = paint.measureText(text)
         if (textWidth > maxTextWidth) paint.textSize *= maxTextWidth / textWidth
         val badgeWidth = maxOf(badgeHeight, paint.measureText(text) + padding * 2).coerceAtMost(availableWidth)
-        val right = width - margin
+        // Draw over the tile padding, with enough clearance at the grid and dock edges.
+        val outset = context.dp(6)
+        val right = (art.right + outset).toFloat().coerceIn(margin + badgeWidth, width - margin)
+        val badgeTop = (art.top - outset).toFloat().coerceIn(margin, height - margin - badgeHeight)
         val left = right - badgeWidth
         val bottom = badgeTop + badgeHeight
         val radius = badgeHeight / 2

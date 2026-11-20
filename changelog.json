@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "version": "0.8.1",
-  "versionCode": 18,
+  "version": "0.8.2",
+  "versionCode": 19,
   "changes": [
-    "Notification badges are larger and easier to read, with bigger numbers, a thicker white outline, and a deeper red fill."
+    "Notification badges sit higher and farther right, using the space between icons so they cover less of the artwork."
   ]
 }
