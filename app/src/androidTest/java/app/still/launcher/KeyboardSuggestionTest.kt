@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.Intent
+import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import android.view.InputDevice
 import android.view.MotionEvent
@@ -32,6 +33,7 @@ import helium314.keyboard.latin.WordComposer
 import helium314.keyboard.latin.common.StringUtils
 import helium314.keyboard.latin.settings.SettingsValuesForSuggestion
 import org.junit.Assert.*
+import org.junit.Before
 import org.junit.Test
 import java.util.Locale
 import java.util.concurrent.CountDownLatch
@@ -41,6 +43,26 @@ import java.util.concurrent.ConcurrentHashMap
 /** Runs against the packaged native dictionaries, real IME connection and rendered code row. */
 class KeyboardSuggestionTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
+
+    @Before fun selectKeyboardUnderTest() {
+        val context = instrumentation.targetContext
+        val ime = ComponentName(context, LatinIME::class.java).flattenToString()
+        val checker = "${context.packageName}/helium314.keyboard.latin.spellcheck.AndroidSpellCheckerService"
+        // APK installation can reset Android's selected input services after host setup.
+        shell("ime enable $ime")
+        shell("ime set $ime")
+        shell("settings put secure show_ime_with_hard_keyboard 1")
+        shell("settings put secure spell_checker_enabled 1")
+        shell("settings put secure selected_spell_checker $checker")
+        assertEquals("The test keyboard must be selected", ime,
+            shell("settings get secure default_input_method").trim())
+        assertEquals("The native spell checker must be selected", checker,
+            shell("settings get secure selected_spell_checker").trim())
+    }
+
+    private fun shell(command: String) = ParcelFileDescriptor.AutoCloseInputStream(
+        instrumentation.uiAutomation.executeShellCommand(command)
+    ).bufferedReader().use { it.readText() }
 
     @Test fun systemKeyboardSettingsOpenGlyph() {
         val context = instrumentation.targetContext
