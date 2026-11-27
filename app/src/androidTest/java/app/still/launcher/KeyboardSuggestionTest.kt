@@ -104,8 +104,27 @@ class KeyboardSuggestionTest {
             }
             if (ime == null) SystemClock.sleep(100)
         } while (ime == null && SystemClock.elapsedRealtime() < deadline)
-        try { return test(editor, ime ?: throw AssertionError("Glyph Keyboard must bind to the test editor")) }
-        finally { instrumentation.runOnMainSync { activity.finish() } }
+        try {
+            val boundIme = ime ?: run {
+                var state = ""
+                instrumentation.runOnMainSync {
+                    val candidate = field.get(KeyboardSwitcher.getInstance()) as? LatinIME
+                    state = "windowFocused=${activity.hasWindowFocus()} editorFocused=${editor.hasFocus()} " +
+                        "attached=${editor.isAttachedToWindow} shown=${editor.isShown} " +
+                        "imeCreated=${candidate != null} inputViewShown=${candidate?.isInputViewShown} " +
+                        "editorPackage=${candidate?.currentInputEditorInfo?.packageName}"
+                }
+                val selected = shell("settings get secure default_input_method").trim()
+                android.util.Log.e("StillSuggestionTest", "Keyboard binding failed: $state selected=$selected")
+                android.util.Log.e("StillSuggestionTest", shell("dumpsys input_method"))
+                val focus = shell("dumpsys window windows").lineSequence().filter { line ->
+                    listOf("mCurrentFocus", "mFocusedApp", "mImeInputTarget", "mImeControlTarget").any { it in line }
+                }.joinToString("\n")
+                android.util.Log.e("StillSuggestionTest", focus)
+                throw AssertionError("Glyph Keyboard must bind to the test editor: $state selected=$selected")
+            }
+            return test(editor, boundIme)
+        } finally { instrumentation.runOnMainSync { activity.finish() } }
     }
 
     private fun assertCommaBeforeBackspace(keyboard: Keyboard, question: Char) {
